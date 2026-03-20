@@ -26,8 +26,9 @@ std::vector<FatturaInfo> g_fattureInfo;         // Informazioni dettagliate dell
 std::vector<int> g_listBoxToFatturaIndex;       // Mappa indice ListBox -> indice g_fattureInfo (-1 = intestazione)
 std::wstring g_currentXmlPath;                  // Percorso del file XML corrente
 std::wstring g_extractPath;                     // Percorso di estrazione
-std::wstring g_lastXsltPath;                    // Ultimo foglio di stile usato
+std::wstring g_lastXsltPath;                    // Foglio di stile corrente
 std::wstring g_welcomePath;                     // Percorso file welcome
+std::wstring g_appPath;                         // Percorso della cartella dell'applicazione
 FatturaElettronicaParser* g_pParser = nullptr;  // Parser fatture
 HWND g_hListBox = NULL;                         // ListBox per le fatture
 HWND g_hMainWnd = NULL;                         // Finestra principale
@@ -45,8 +46,9 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    StylesheetSelector(HWND, UINT, WPARAM, LPARAM);
 void                OnOpenZip(HWND hWnd);
-void                OnApplyStylesheet(HWND hWnd, bool useMinistero);
+void                OnApplyStylesheet(HWND hWnd);
 void                OnPrintCurrent(HWND hWnd);
 void                OnPrintAll(HWND hWnd);
 void                OnPrintSelected(HWND hWnd);
@@ -54,6 +56,11 @@ void                LoadFattureList(HWND hWnd);
 std::wstring        GetTempExtractionPath();
 std::wstring        OpenFileDialog(HWND hWnd, const WCHAR* filter, const WCHAR* title);
 HWND                CreateToolbar(HWND hParent, HINSTANCE hInst);
+std::wstring        GetApplicationPath();
+void                LoadStylesheetPreference();
+void                SaveStylesheetPreference(const std::wstring& path);
+std::vector<std::wstring> GetStylesheetsFromResources();
+std::wstring        GetResourcesPath();
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -66,6 +73,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Inizializza il parser
     g_pParser = new FatturaElettronicaParser();
     g_extractPath = GetTempExtractionPath();
+    g_appPath = GetApplicationPath();
+
+    // Carica la preferenza del foglio di stile
+    LoadStylesheetPreference();
 
     // Inizializza Common Controls per la toolbar
     INITCOMMONCONTROLSEX icex;
@@ -414,6 +425,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 KillTimer(hWnd, 1); // Ferma il timer
 
+                // Mostra loader: cursore wait e messaggio status bar
+                HCURSOR hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
+                if (g_hStatusBar)
+                    SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento interfaccia...");
+
                 // Naviga al file welcome
                 if (g_hBrowserWnd)
                 {
@@ -428,6 +444,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
                     }
                 }
+
+                // Attendi un momento per il caricamento
+                Sleep(500);
+
+                // Ripristina cursore e status bar
+                SetCursor(hOldCursor);
+                if (g_hStatusBar)
+                    SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Pronto");
             }
         }
         break;
@@ -447,15 +471,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 OnOpenZip(hWnd);
                 break;
             case IDM_APPLY_MINISTERO:
-                OnApplyStylesheet(hWnd, true);
-                break;
             case IDM_APPLY_ASSOSOFTWARE:
-                OnApplyStylesheet(hWnd, false);
-                break;
             case IDM_CHANGE_STYLESHEET:
-                // Resetta l'ultimo foglio di stile per forzare la selezione
-                g_lastXsltPath.clear();
-                OnApplyStylesheet(hWnd, true);
+                OnApplyStylesheet(hWnd);
                 break;
             case IDM_PRINT_CURRENT:
                 OnPrintCurrent(hWnd);
@@ -465,6 +483,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDM_PRINT_SELECTED:
                 OnPrintSelected(hWnd);
+                break;
+            case IDM_SETTINGS_SELECT_STYLESHEET:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_STYLESHEET_SELECTOR), hWnd, StylesheetSelector);
                 break;
             case IDM_TEST_BROWSER:
                 {
@@ -493,11 +514,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         // -1 significa intestazione o riga vuota, ignora
                         if (fatturaIndex >= 0 && fatturaIndex < (int)g_fattureInfo.size())
                         {
-                            g_currentXmlPath = g_fattureInfo[fatturaIndex].filePath;
+                                g_currentXmlPath = g_fattureInfo[fatturaIndex].filePath;
 
-                            // Visualizza automaticamente la fattura con un singolo click
-                            OnApplyStylesheet(hWnd, true);
-                        }
+                                // Visualizza automaticamente la fattura con un singolo click
+                                OnApplyStylesheet(hWnd);
+                            }
                     }
                 }
                 break;
@@ -597,6 +618,113 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return (INT_PTR)FALSE;
 }
 
+// Gestore di messaggi per la finestra di selezione foglio di stile
+INT_PTR CALLBACK StylesheetSelector(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    static std::vector<std::wstring> stylesheets;
+    static std::wstring resourcesPath;
+
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        {
+            // Trova il percorso corretto della cartella Resources
+            resourcesPath = GetResourcesPath();
+
+            // Carica i fogli di stile dalla cartella Resources
+            stylesheets = GetStylesheetsFromResources();
+
+            HWND hList = GetDlgItem(hDlg, IDC_STYLESHEET_LIST);
+
+            if (stylesheets.empty())
+            {
+                MessageBoxW(hDlg, 
+                    L"Nessun foglio di stile trovato nella cartella Resources!\n\nAssicurati che i file .xsl siano nella cartella Resources\\",
+                    L"Attenzione", MB_OK | MB_ICONWARNING);
+                EndDialog(hDlg, IDCANCEL);
+                return (INT_PTR)TRUE;
+            }
+
+            // Popola la listbox con i nomi dei file
+            int selectedIndex = -1;
+            for (size_t i = 0; i < stylesheets.size(); i++)
+            {
+                SendMessageW(hList, LB_ADDSTRING, 0, (LPARAM)stylesheets[i].c_str());
+
+                // Se questo è il foglio corrente, selezionalo
+                std::wstring currentName = g_lastXsltPath;
+                size_t pos = currentName.find_last_of(L"\\");
+                if (pos != std::wstring::npos)
+                    currentName = currentName.substr(pos + 1);
+
+                if (stylesheets[i] == currentName)
+                    selectedIndex = (int)i;
+            }
+
+            // Seleziona il foglio corrente o il primo
+            if (selectedIndex >= 0)
+                SendMessageW(hList, LB_SETCURSEL, selectedIndex, 0);
+            else if (!stylesheets.empty())
+                SendMessageW(hList, LB_SETCURSEL, 0, 0);
+
+            // Mostra info sul foglio selezionato
+            if (!stylesheets.empty())
+            {
+                int idx = (selectedIndex >= 0) ? selectedIndex : 0;
+                std::wstring info = L"File: " + resourcesPath + stylesheets[idx];
+                SetDlgItemTextW(hDlg, IDC_STYLESHEET_PREVIEW, info.c_str());
+            }
+
+            return (INT_PTR)TRUE;
+        }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDC_STYLESHEET_LIST && HIWORD(wParam) == LBN_SELCHANGE)
+        {
+            // Aggiorna l'anteprima quando cambia la selezione
+            HWND hList = GetDlgItem(hDlg, IDC_STYLESHEET_LIST);
+            int sel = (int)SendMessageW(hList, LB_GETCURSEL, 0, 0);
+            if (sel >= 0 && sel < (int)stylesheets.size())
+            {
+                std::wstring info = L"File: " + resourcesPath + stylesheets[sel];
+                SetDlgItemTextW(hDlg, IDC_STYLESHEET_PREVIEW, info.c_str());
+            }
+            return (INT_PTR)TRUE;
+        }
+        else if (LOWORD(wParam) == IDOK)
+        {
+            // Salva la selezione
+            HWND hList = GetDlgItem(hDlg, IDC_STYLESHEET_LIST);
+            int sel = (int)SendMessageW(hList, LB_GETCURSEL, 0, 0);
+
+            if (sel >= 0 && sel < (int)stylesheets.size())
+            {
+                std::wstring fullPath = resourcesPath + stylesheets[sel];
+                g_lastXsltPath = fullPath;
+                SaveStylesheetPreference(fullPath);
+
+                // Aggiorna la status bar nella finestra principale
+                if (g_hStatusBar)
+                {
+                    std::wstring statusMsg = L"⚙ Foglio di stile: " + stylesheets[sel];
+                    SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)statusMsg.c_str());
+                }
+            }
+
+            EndDialog(hDlg, IDOK);
+            return (INT_PTR)TRUE;
+        }
+        else if (LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, IDCANCEL);
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
+}
+
 std::wstring OpenFileDialog(HWND hWnd, const WCHAR* filter, const WCHAR* title)
 {
     WCHAR szFile[MAX_PATH] = { 0 };
@@ -639,31 +767,86 @@ void OnOpenZip(HWND hWnd)
     if (!g_pParser)
         return;
 
-    // Aggiorna status bar
+    // ===== INIZIO LOADER =====
+
+    // Disabilita controlli durante l'estrazione
+    EnableWindow(g_hListBox, FALSE);
+    EnableWindow(g_hToolbar, FALSE);
+
+    // Cambia cursore in wait (clessidra)
+    HCURSOR hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
+
+    // Aggiorna status bar con animazione
     if (g_hStatusBar)
-        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Estrazione in corso...");
+    {
+        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"⏳ Estrazione ZIP in corso...");
+        UpdateWindow(g_hStatusBar);
+    }
+
+    // Aggiorna titolo finestra
+    std::wstring oldTitle;
+    WCHAR titleBuffer[256];
+    GetWindowTextW(hWnd, titleBuffer, 256);
+    oldTitle = titleBuffer;
+    SetWindowTextW(hWnd, L"⏳ Estrazione in corso - Attendere...");
+
+    // Forza ridisegno
+    UpdateWindow(hWnd);
 
     // Estrai il file ZIP
-    if (g_pParser->ExtractZipFile(zipPath, g_extractPath))
+    bool success = g_pParser->ExtractZipFile(zipPath, g_extractPath);
+
+    if (success)
     {
+        // Aggiorna messaggio durante il caricamento della lista
+        if (g_hStatusBar)
+        {
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"📄 Caricamento fatture...");
+            UpdateWindow(g_hStatusBar);
+        }
+
         // Carica la lista dei file XML
         LoadFattureList(hWnd);
+
+        // ===== FINE LOADER - SUCCESSO =====
+
+        // Ripristina titolo
+        SetWindowTextW(hWnd, oldTitle.c_str());
+
+        // Ripristina cursore
+        SetCursor(hOldCursor);
+
+        // Riabilita controlli
+        EnableWindow(g_hListBox, TRUE);
+        EnableWindow(g_hToolbar, TRUE);
 
         // Aggiorna status bar con il numero di fatture
         if (g_hStatusBar)
         {
-            std::wstring statusText = std::to_wstring(g_fattureInfo.size()) + L" fatture caricate";
+            std::wstring statusText = L"✓ " + std::to_wstring(g_fattureInfo.size()) + L" fatture caricate con successo";
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)statusText.c_str());
         }
 
-        MessageBoxW(hWnd, L"Fatture estratte con successo!", L"Info", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(hWnd, L"Fatture estratte con successo!", L"✓ Completato", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        if (g_hStatusBar)
-            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Errore estrazione");
+        // ===== FINE LOADER - ERRORE =====
 
-        MessageBoxW(hWnd, L"Errore durante l'estrazione del file ZIP!", L"Errore", MB_OK | MB_ICONERROR);
+        // Ripristina titolo
+        SetWindowTextW(hWnd, oldTitle.c_str());
+
+        // Ripristina cursore
+        SetCursor(hOldCursor);
+
+        // Riabilita controlli
+        EnableWindow(g_hListBox, TRUE);
+        EnableWindow(g_hToolbar, TRUE);
+
+        if (g_hStatusBar)
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"✗ Errore estrazione");
+
+        MessageBoxW(hWnd, L"Errore durante l'estrazione del file ZIP!", L"✗ Errore", MB_OK | MB_ICONERROR);
     }
 }
 
@@ -747,7 +930,7 @@ void LoadFattureList(HWND hWnd)
     }
 }
 
-void OnApplyStylesheet(HWND hWnd, bool useMinistero)
+void OnApplyStylesheet(HWND hWnd)
 {
     if (g_currentXmlPath.empty())
     {
@@ -758,39 +941,71 @@ void OnApplyStylesheet(HWND hWnd, bool useMinistero)
     if (!g_pParser)
         return;
 
+    // ===== INIZIO LOADER =====
+    HCURSOR hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
+    if (g_hStatusBar)
+    {
+        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"⏳ Caricamento fattura...");
+        UpdateWindow(g_hStatusBar);
+    }
+
     // Carica il file XML
     if (!g_pParser->LoadXmlFile(g_currentXmlPath))
     {
+        SetCursor(hOldCursor);
+        if (g_hStatusBar)
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"✗ Errore caricamento XML");
         MessageBoxW(hWnd, L"Errore nel caricamento del file XML!", L"Errore", MB_OK | MB_ICONERROR);
         return;
     }
 
-    // Seleziona il foglio di stile (usa l'ultimo se disponibile)
-    std::wstring xsltPath;
+    // Usa il foglio di stile configurato
+    std::wstring xsltPath = g_lastXsltPath;
 
-    if (!g_lastXsltPath.empty())
+    // Se non c'è nessun foglio configurato, chiedi di selezionarne uno
+    if (xsltPath.empty() || GetFileAttributesW(xsltPath.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
-        // Usa l'ultimo foglio di stile utilizzato
-        xsltPath = g_lastXsltPath;
-    }
-    else
-    {
-        // Chiedi all'utente di selezionare il foglio di stile
-        xsltPath = OpenFileDialog(hWnd,
-            L"File XSLT\0*.xsl;*.xslt\0Tutti i file\0*.*\0",
-            useMinistero ? L"Seleziona foglio di stile Ministero" : L"Seleziona foglio di stile Assosoftware");
+        SetCursor(hOldCursor);
 
-        if (xsltPath.empty())
+        MessageBoxW(hWnd, 
+            L"Nessun foglio di stile configurato!\n\nApri il menu Impostazioni per selezionare un foglio di stile.", 
+            L"Configurazione richiesta", MB_OK | MB_ICONINFORMATION);
+
+        // Apri automaticamente il dialog di selezione
+        if (DialogBox(hInst, MAKEINTRESOURCE(IDD_STYLESHEET_SELECTOR), hWnd, StylesheetSelector) != IDOK)
+        {
+            if (g_hStatusBar)
+                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Operazione annullata");
             return;
+        }
 
-        // Memorizza per usi futuri
-        g_lastXsltPath = xsltPath;
+        xsltPath = g_lastXsltPath;
+        if (xsltPath.empty())
+        {
+            if (g_hStatusBar)
+                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Nessun foglio selezionato");
+            return;
+        }
+
+        hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
+    }
+
+    if (g_hStatusBar)
+    {
+        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"🎨 Applicazione foglio di stile...");
+        UpdateWindow(g_hStatusBar);
     }
 
     // Applica la trasformazione
     std::wstring htmlOutput;
     if (g_pParser->ApplyXsltTransform(xsltPath, htmlOutput))
     {
+        if (g_hStatusBar)
+        {
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"📄 Rendering HTML...");
+            UpdateWindow(g_hStatusBar);
+        }
+
         // Salva l'HTML in un file temporaneo
         std::wstring htmlPath = g_extractPath + L"fattura_visualizzata.html";
         FatturaViewer::SaveHTMLToFile(htmlOutput, htmlPath);
@@ -800,9 +1015,18 @@ void OnApplyStylesheet(HWND hWnd, bool useMinistero)
         {
             FatturaViewer::NavigateToHTML(g_hBrowserWnd, htmlPath);
         }
+
+        // ===== FINE LOADER - SUCCESSO =====
+        SetCursor(hOldCursor);
+        if (g_hStatusBar)
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"✓ Fattura visualizzata");
     }
     else
     {
+        // ===== FINE LOADER - ERRORE =====
+        SetCursor(hOldCursor);
+        if (g_hStatusBar)
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"✗ Errore trasformazione");
         MessageBoxW(hWnd, L"Errore durante l'applicazione del foglio di stile!", L"Errore", MB_OK | MB_ICONERROR);
     }
 }
@@ -1126,4 +1350,135 @@ HWND CreateToolbar(HWND hParent, HINSTANCE hInst)
     SendMessage(hToolbar, TB_AUTOSIZE, 0, 0);
 
     return hToolbar;
+}
+
+// Ottiene il percorso della cartella dell'applicazione
+std::wstring GetApplicationPath()
+{
+    WCHAR exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+
+    std::wstring path(exePath);
+    size_t lastSlash = path.find_last_of(L"\\/");
+    if (lastSlash != std::wstring::npos)
+    {
+        return path.substr(0, lastSlash + 1);
+    }
+    return L"";
+}
+
+// Carica la preferenza del foglio di stile dal Registry
+void LoadStylesheetPreference()
+{
+    HKEY hKey;
+    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FatturaElettronicaViewer", 0, KEY_READ, &hKey);
+
+    if (result == ERROR_SUCCESS)
+    {
+        WCHAR savedPath[MAX_PATH] = { 0 };
+        DWORD dataSize = sizeof(savedPath);
+        result = RegQueryValueExW(hKey, L"StylesheetPath", NULL, NULL, (LPBYTE)savedPath, &dataSize);
+
+        if (result == ERROR_SUCCESS)
+        {
+            g_lastXsltPath = savedPath;
+        }
+        else
+        {
+            // Default: Assosoftware
+            std::wstring resourcesPath = GetResourcesPath();
+            g_lastXsltPath = resourcesPath + L"FoglioStileAssoSoftware.xsl";
+        }
+
+        RegCloseKey(hKey);
+    }
+    else
+    {
+        // Prima esecuzione: usa Assosoftware come predefinito
+        std::wstring resourcesPath = GetResourcesPath();
+        g_lastXsltPath = resourcesPath + L"FoglioStileAssoSoftware.xsl";
+        SaveStylesheetPreference(g_lastXsltPath);
+    }
+}
+
+// Salva la preferenza del foglio di stile nel Registry
+void SaveStylesheetPreference(const std::wstring& path)
+{
+    HKEY hKey;
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\FatturaElettronicaViewer", 0, NULL, 
+        REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+
+    if (result == ERROR_SUCCESS)
+    {
+        RegSetValueExW(hKey, L"StylesheetPath", 0, REG_SZ, 
+            (LPBYTE)path.c_str(), 
+            (DWORD)((path.length() + 1) * sizeof(wchar_t)));
+
+        RegCloseKey(hKey);
+    }
+}
+
+// Ottiene la lista dei fogli di stile dalla cartella Resources
+std::vector<std::wstring> GetStylesheetsFromResources()
+{
+    std::vector<std::wstring> stylesheets;
+
+    // Lista di percorsi da cercare (utile per debug e release)
+    std::vector<std::wstring> searchPaths = {
+        g_appPath + L"Resources\\*.xsl",           // Release: accanto all'exe
+        g_appPath + L"..\\..\\Resources\\*.xsl",   // Debug: due livelli sopra (da x64\Debug)
+        g_appPath + L"..\\Resources\\*.xsl"        // Debug alternativo: un livello sopra
+    };
+
+    for (const auto& searchPath : searchPaths)
+    {
+        WIN32_FIND_DATAW findData;
+        HANDLE hFind = FindFirstFileW(searchPath.c_str(), &findData);
+
+        if (hFind != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                {
+                    // Verifica che non sia un duplicato
+                    std::wstring fileName = findData.cFileName;
+                    if (std::find(stylesheets.begin(), stylesheets.end(), fileName) == stylesheets.end())
+                    {
+                        stylesheets.push_back(fileName);
+                    }
+                }
+            } while (FindNextFileW(hFind, &findData));
+
+            FindClose(hFind);
+
+            // Se abbiamo trovato file, non cercare oltre
+            if (!stylesheets.empty())
+                break;
+        }
+    }
+
+    return stylesheets;
+}
+
+// Trova il percorso reale della cartella Resources (anche durante il debug)
+std::wstring GetResourcesPath()
+{
+    std::vector<std::wstring> possiblePaths = {
+        g_appPath + L"Resources\\",           // Release: accanto all'exe
+        g_appPath + L"..\\..\\Resources\\",   // Debug: due livelli sopra (da x64\Debug)
+        g_appPath + L"..\\Resources\\"        // Debug alternativo: un livello sopra
+    };
+
+    for (const auto& path : possiblePaths)
+    {
+        DWORD attribs = GetFileAttributesW(path.c_str());
+        if (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            return path;
+        }
+    }
+
+    // Default: assume sia accanto all'exe
+    return g_appPath + L"Resources\\";
 }

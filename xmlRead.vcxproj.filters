@@ -63,6 +63,7 @@
     <None Include="GUIDA_USO.md" />
     <None Include="welcome.html" />
     <None Include="TROUBLESHOOTING.md" />
+    <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="esempio_stylesheet.xsl" />

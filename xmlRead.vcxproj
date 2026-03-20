@@ -147,6 +147,7 @@
     <Image Include="xmlRead.ico" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />
     <None Include="GUIDA_USO.md" />
     <None Include="README.md" />
     <None Include="TROUBLESHOOTING.md" />
