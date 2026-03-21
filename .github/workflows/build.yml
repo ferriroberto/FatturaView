@@ -1,0 +1,99 @@
+name: Build Linux (Qt6)
+
+on:
+  push:
+    branches: [ develop, release/*, main ]
+  pull_request:
+    branches: [ develop, main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux x64
+    runs-on: ubuntu-24.04
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Dipendenze sistema
+      # -----------------------------------------------------------------------
+      - name: Installa dipendenze
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build \
+            qt6-base-dev qt6-webengine-dev \
+            libxml2-dev libxslt1-dev libzip-dev \
+            libgl1-mesa-dev libgles2-mesa-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb-icccm4-dev libxcb-image0-dev \
+            libxcb-keysyms1-dev libxcb-render-util0-dev \
+            libxcb-xinerama0-dev libxcb-xfixes0-dev
+
+      # -----------------------------------------------------------------------
+      # 3. Configurazione CMake
+      # -----------------------------------------------------------------------
+      - name: Configura CMake
+        run: |
+          cmake -S linux -B linux/build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/dist/linux
+
+      # -----------------------------------------------------------------------
+      # 4. Build
+      # -----------------------------------------------------------------------
+      - name: Compila
+        run: cmake --build linux/build --config Release --parallel
+
+      # -----------------------------------------------------------------------
+      # 5. Installa nella cartella dist/
+      # -----------------------------------------------------------------------
+      - name: Installa artefatti
+        run: |
+          cmake --install linux/build
+          cp -r Resources dist/linux/share/fatturaview/
+
+      # -----------------------------------------------------------------------
+      # 6. Carica artefatto scaricabile da GitHub
+      # -----------------------------------------------------------------------
+      - name: Carica artefatto Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: FatturaView-Linux-x64
+          path: dist/linux/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Build Windows (opzionale — usa il .vcxproj esistente)
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Release x64
+        run: |
+          msbuild FatturaView.vcxproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /nologo
+
+      - name: Carica artefatto Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: FatturaView-Windows-x64
+          path: x64/Release/FatturaView.exe
+          retention-days: 30
