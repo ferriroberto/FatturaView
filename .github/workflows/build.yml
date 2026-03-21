@@ -50,7 +50,7 @@ jobs:
           host:      'linux'
           target:    'desktop'
           arch:      'linux_gcc_64'
-          modules:   'qtwebengine qtwebchannel qtpositioning'
+          modules:   'qtwebengine qtwebchannel qtpositioning qtserialport'
           cache:     true
 
       # -----------------------------------------------------------------------
