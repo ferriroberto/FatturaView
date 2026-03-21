@@ -69,7 +69,7 @@ install(TARGETS fatturaview DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/../Resources/
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fatturaview/Resources)
 
-install(FILES ${CMAKE_SOURCE_DIR}/fatturaview.desktop
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/fatturaview.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
 # ---------------------------------------------------------------------------
