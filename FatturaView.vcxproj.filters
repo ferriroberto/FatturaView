@@ -24,29 +24,35 @@
     <ClInclude Include="Resource.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
-    <ClInclude Include="xmlRead.h">
-      <Filter>File di intestazione</Filter>
-    </ClInclude>
     <ClInclude Include="FatturaElettronicaParser.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="FatturaViewer.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="PdfSigner.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="FatturaView.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="xmlRead.cpp">
-      <Filter>File di origine</Filter>
-    </ClCompile>
     <ClCompile Include="FatturaElettronicaParser.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
     <ClCompile Include="FatturaViewer.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
+    <ClCompile Include="PdfSigner.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="FatturaView.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="xmlRead.rc">
+    <ResourceCompile Include="FatturaView.rc">
       <Filter>File di risorse</Filter>
     </ResourceCompile>
   </ItemGroup>
@@ -54,7 +60,7 @@
     <Image Include="small.ico">
       <Filter>File di risorse</Filter>
     </Image>
-    <Image Include="xmlRead.ico">
+    <Image Include="FatturaView.ico">
       <Filter>File di risorse</Filter>
     </Image>
   </ItemGroup>
@@ -64,6 +70,17 @@
     <None Include="welcome.html" />
     <None Include="TROUBLESHOOTING.md" />
     <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />
+    <None Include="GUIDA_FIRMA_DIGITALE.md" />
+    <None Include="GUIDA_RISOLUZIONE_AVVISO_FOXIT.md" />
+    <None Include="RISPOSTA_AVVISO_FOXIT.md" />
+    <None Include="FIX_EXECUTION_POLICY.md" />
+    <None Include="EXECUTION_POLICY_RISOLTO.md" />
+    <None Include="SignExecutable.ps1" />
+    <None Include="SignExecutable.bat">
+      <Filter>File di origine</Filter>
+    </None>
+    <None Include="Installer\FatturaView.iss" />
+    <None Include="Installer\Build-Installer.ps1" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="esempio_stylesheet.xsl" />

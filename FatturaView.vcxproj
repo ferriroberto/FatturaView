@@ -153,6 +153,8 @@
     <None Include="GUIDA_FIRMA_DIGITALE.md" />
     <None Include="GUIDA_USO.md" />
     <None Include="GUIDA_RISOLUZIONE_AVVISO_FOXIT.md" />
+    <None Include="Installer\Build-Installer.ps1" />
+    <None Include="Installer\FatturaView.iss" />
     <None Include="RISPOSTA_AVVISO_FOXIT.md" />
     <None Include="FIX_EXECUTION_POLICY.md" />
     <None Include="EXECUTION_POLICY_RISOLTO.md" />
