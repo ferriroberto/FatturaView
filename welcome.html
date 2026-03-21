@@ -6,33 +6,75 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden}
-body{font-family:Segoe UI,Arial;background:#2563eb;display:flex;align-items:center;justify-content:center;color:#fff}
-.c{text-align:center;padding:30px;background:rgba(255,255,255,0.15);border-radius:15px;max-width:600px}
-.i{width:80px;height:80px;margin:0 auto 15px}
-h1{font-size:2em;margin-bottom:10px}
-.s{font-size:1em;opacity:.9;margin-bottom:25px}
-.st{background:rgba(255,255,255,0.2);padding:10px;margin:6px 0;border-radius:8px;text-align:left;display:flex;align-items:center}
-.n{width:24px;height:24px;background:#fff;color:#2563eb;border-radius:50%;text-align:center;line-height:24px;font-weight:bold;margin-right:10px;flex-shrink:0}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+display:flex;align-items:center;justify-content:center;color:#fff;position:relative}
+body::before{content:'';position:absolute;width:200%;height:200%;
+background:radial-gradient(circle at 20% 50%,rgba(120,119,198,0.3) 0%,transparent 50%),
+radial-gradient(circle at 80% 80%,rgba(138,75,175,0.3) 0%,transparent 50%);
+animation:drift 20s ease-in-out infinite;z-index:0}
+@keyframes drift{0%,100%{transform:translate(0,0) rotate(0deg)}
+50%{transform:translate(-50px,-50px) rotate(180deg)}}
+@keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-8px)}}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 8px rgba(16,185,129,0.6))}
+50%{filter:drop-shadow(0 0 16px rgba(16,185,129,0.9))}}
+@keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.c{position:relative;z-index:1;text-align:center;padding:24px;
+background:rgba(255,255,255,0.12);backdrop-filter:blur(16px) saturate(180%);
+border-radius:20px;max-width:480px;
+box-shadow:0 8px 32px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.3);
+border:1px solid rgba(255,255,255,0.18)}
+.i{width:64px;height:64px;margin:0 auto 12px;animation:float 3s ease-in-out infinite}
+.ic{animation:glow 2s ease-in-out infinite}
+h1{font-size:1.75em;margin-bottom:4px;font-weight:700;letter-spacing:-0.02em;
+text-shadow:0 2px 12px rgba(0,0,0,0.25)}
+.s{font-size:0.85em;opacity:.92;margin-bottom:16px;font-weight:500;letter-spacing:0.01em}
+.st{background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);
+padding:10px 12px;margin:8px 0;border-radius:12px;text-align:left;display:flex;
+align-items:center;font-size:0.88em;transition:all 0.3s ease;
+border:1px solid rgba(255,255,255,0.15);animation:slideIn 0.5s ease-out backwards}
+.st:nth-child(1){animation-delay:0.1s}
+.st:nth-child(2){animation-delay:0.2s}
+.st:nth-child(3){animation-delay:0.3s}
+.st:nth-child(4){animation-delay:0.4s}
+.st:hover{background:rgba(255,255,255,0.22);transform:translateX(4px);
+box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+.n{width:28px;height:28px;background:linear-gradient(135deg,#fff 0%,#f0f0f0 100%);
+color:#667eea;border-radius:50%;text-align:center;line-height:28px;
+font-weight:700;margin-right:10px;flex-shrink:0;font-size:0.9em;
+box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.st b{display:block;margin-bottom:2px;font-size:1.05em}
+.st div{line-height:1.4}
 </style>
 </head>
 <body>
 <div class="c">
 <svg class="i" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-<rect x="0" y="0" width="100" height="100" fill="#2563eb"/>
-<rect x="25" y="12" width="55" height="70" rx="2" fill="#fff"/>
-<polygon points="69,12 80,23 69,23" fill="#dce4f0"/>
-<line x1="33" y1="33" x2="68" y2="33" stroke="#2563eb" stroke-width="1.5"/>
-<line x1="33" y1="45" x2="60" y2="45" stroke="#2563eb" stroke-width="1.5"/>
-<line x1="33" y1="57" x2="68" y2="57" stroke="#2563eb" stroke-width="1.5"/>
-<circle cx="68" cy="73" r="10" fill="#10b981"/>
-<polyline points="63,73 66,76 73,68" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<defs>
+<linearGradient id="docGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" style="stop-color:#667eea;stop-opacity:1"/>
+<stop offset="100%" style="stop-color:#764ba2;stop-opacity:1"/>
+</linearGradient>
+<filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+<feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.3"/>
+</filter>
+</defs>
+<rect x="0" y="0" width="100" height="100" rx="8" fill="url(#docGrad)" filter="url(#shadow)"/>
+<rect x="20" y="15" width="60" height="70" rx="3" fill="#fff" opacity="0.95"/>
+<path d="M 70 15 L 80 25 L 70 25 Z" fill="#e5e7eb" opacity="0.8"/>
+<line x1="28" y1="30" x2="70" y2="30" stroke="#667eea" stroke-width="2" opacity="0.7"/>
+<line x1="28" y1="42" x2="60" y2="42" stroke="#667eea" stroke-width="2" opacity="0.5"/>
+<line x1="28" y1="54" x2="70" y2="54" stroke="#667eea" stroke-width="2" opacity="0.5"/>
+<line x1="28" y1="66" x2="55" y2="66" stroke="#667eea" stroke-width="2" opacity="0.4"/>
+<circle class="ic" cx="72" cy="75" r="12" fill="#10b981" filter="url(#shadow)"/>
+<polyline points="66,75 70,79 78,69" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 <h1>FatturaView</h1>
-<p class="s">Visualizzatore Fatture Elettroniche PA</p>
-<div class="st"><span class="n">1</span><div><b>Apri ZIP</b><br>File - Apri archivio ZIP</div></div>
+<p class="s">Visualizzatore Professionale Fatture Elettroniche PA</p>
+<div class="st"><span class="n">1</span><div><b>Apri ZIP</b><br>File → Apri archivio ZIP</div></div>
 <div class="st"><span class="n">2</span><div><b>Seleziona fattura</b><br>Doppio click nella lista</div></div>
-<div class="st"><span class="n">3</span><div><b>Applica stile</b><br>Visualizza - Ministero/Assosoftware</div></div>
-<div class="st"><span class="n">4</span><div><b>Stampa PDF</b><br>File - Stampa fatture</div></div>
+<div class="st"><span class="n">3</span><div><b>Applica stile</b><br>Visualizza → Ministero/Assosoftware</div></div>
+<div class="st"><span class="n">4</span><div><b>Stampa PDF</b><br>File → Stampa fatture</div></div>
 </div>
 </body>
 </html>
