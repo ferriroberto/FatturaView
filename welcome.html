@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta charset="UTF-8">
 <title>FatturaView</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
-body{background:linear-gradient(135deg,#6366f1 0%,#a855f7 50%,#ec4899 100%);
-display:flex;align-items:center;justify-content:center;position:relative;min-height:100vh}
+html,body{width:100%;height:100%;overflow:hidden;margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif}
+body{background:linear-gradient(135deg,#6366f1 0%,#a855f7 50%,#ec4899 100%);position:relative}
 body::before{content:'';position:absolute;inset:0;background:
 radial-gradient(circle at 10% 20%,rgba(255,255,255,0.1) 0%,transparent 50%),
 radial-gradient(circle at 90% 80%,rgba(255,255,255,0.08) 0%,transparent 50%);
@@ -17,69 +17,54 @@ animation:pulse 8s ease-in-out infinite;z-index:0}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 12px rgba(16,185,129,0.8))}
 50%{filter:drop-shadow(0 0 20px rgba(16,185,129,1))}}
 @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
-@keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
-.c{position:relative;z-index:1;text-align:center;padding:36px 32px;
-background:#fff;border-radius:24px;max-width:520px;width:90%;
-box-shadow:0 25px 50px -12px rgba(0,0,0,0.25),0 0 80px rgba(99,102,241,0.15);
+.wrp{width:100%;height:100%;border:none;border-spacing:0;position:relative;z-index:1}
+.c{text-align:center;padding:36px 32px;display:inline-block;
+background:#ffffff;border-radius:24px;max-width:520px;min-width:420px;
+box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);
 animation:slideUp 0.6s cubic-bezier(0.34,1.56,0.64,1)}
 .i{width:96px;height:96px;margin:0 auto 20px;animation:float 4s ease-in-out infinite}
 .ic{animation:glow 2.5s ease-in-out infinite}
 .hd{margin-bottom:24px}
-h1{font-size:2.2em;margin-bottom:8px;font-weight:800;
-background:linear-gradient(135deg,#6366f1 0%,#a855f7 100%);
--webkit-background-clip:text;-webkit-text-fill-color:transparent;
-background-clip:text;letter-spacing:-0.03em}
+h1{font-size:2.2em;margin-bottom:8px;font-weight:bold;color:#6366f1;letter-spacing:-0.03em}
 .s{font-size:0.95em;color:#64748b;font-weight:500;margin-bottom:4px}
-.bg{display:inline-flex;gap:6px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+.bg{margin-top:8px;text-align:center}
 .b{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.75em;
-font-weight:600;letter-spacing:0.02em}
-.b1{background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);color:#fff}
-.b2{background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#fff}
-.b3{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);color:#fff}
-.st{background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);
-padding:14px 16px;margin:12px 0;border-radius:16px;text-align:left;display:flex;
-align-items:center;font-size:0.92em;transition:all 0.35s cubic-bezier(0.4,0,0.2,1);
-border:2px solid #e2e8f0;cursor:pointer;animation:slideUp 0.6s cubic-bezier(0.34,1.56,0.64,1) backwards}
-.st:nth-child(1){animation-delay:0.1s}
-.st:nth-child(2){animation-delay:0.2s}
-.st:nth-child(3){animation-delay:0.3s}
-.st:nth-child(4){animation-delay:0.4s}
-.st:hover{transform:translateX(6px) scale(1.02);
-box-shadow:0 12px 24px -8px rgba(99,102,241,0.25);border-color:#a5b4fc;
-background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%)}
-.n{width:36px;height:36px;background:linear-gradient(135deg,#6366f1 0%,#a855f7 100%);
-color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;
-font-weight:800;margin-right:14px;flex-shrink:0;font-size:1em;
-box-shadow:0 4px 12px rgba(99,102,241,0.4)}
-.st b{display:block;margin-bottom:3px;font-size:1.08em;color:#1e293b;font-weight:700}
-.st span.txt{line-height:1.5;color:#475569;font-size:0.95em}
+font-weight:bold;margin:0 3px;text-transform:uppercase}
+.b1{background:#6366f1;color:#ffffff}
+.b2{background:#10b981;color:#ffffff}
+.b3{background:#f59e0b;color:#ffffff}
+.st{background:#f8fafc;padding:14px 16px;margin:12px 0;border-radius:16px;
+text-align:left;display:block;transition:all 0.3s ease;border:2px solid #e2e8f0;position:relative}
+.st:hover{transform:translateX(6px);box-shadow:0 8px 16px rgba(0,0,0,0.1);border-color:#a5b4fc}
+.n{width:32px;height:32px;background:#6366f1;color:#ffffff;border-radius:8px;
+display:inline-block;text-align:center;line-height:32px;font-weight:bold;
+margin-right:12px;vertical-align:middle}
+.st-inner{display:inline-block;vertical-align:middle;width:calc(100% - 50px)}
+.st b{display:block;margin-bottom:2px;font-size:1.05em;color:#1e293b}
+.st span.txt{line-height:1.4;color:#64748b;font-size:0.92em}
 </style>
 </head>
 <body>
+<table class="wrp"><tr><td align="center" valign="middle">
 <div class="c">
 <svg class="i" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
 <defs>
 <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-<stop offset="0%" style="stop-color:#6366f1"/>
-<stop offset="100%" style="stop-color:#a855f7"/>
-</linearGradient>
-<linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
-<stop offset="0%" style="stop-color:#10b981"/>
-<stop offset="100%" style="stop-color:#059669"/>
+<stop offset="0%" style="stop-color:#6366f1;stop-opacity:1"/>
+<stop offset="100%" style="stop-color:#a855f7;stop-opacity:1"/>
 </linearGradient>
 <filter id="sh" x="-50%" y="-50%" width="200%" height="200%">
 <feDropShadow dx="0" dy="6" stdDeviation="8" flood-opacity="0.3"/>
 </filter>
 </defs>
 <rect x="5" y="5" width="90" height="90" rx="12" fill="url(#g1)" filter="url(#sh)"/>
-<rect x="18" y="18" width="64" height="74" rx="4" fill="#fff" opacity="0.98"/>
+<rect x="18" y="18" width="64" height="74" rx="4" fill="#ffffff" opacity="0.95"/>
 <path d="M 72 18 L 82 28 L 72 28 Z" fill="#e0e7ff"/>
-<line x1="26" y1="32" x2="72" y2="32" stroke="#6366f1" stroke-width="2.5" opacity="0.8"/>
-<line x1="26" y1="45" x2="62" y2="45" stroke="#a855f7" stroke-width="2.5" opacity="0.6"/>
-<line x1="26" y1="58" x2="72" y2="58" stroke="#6366f1" stroke-width="2.5" opacity="0.5"/>
-<line x1="26" y1="71" x2="58" y2="71" stroke="#a855f7" stroke-width="2.5" opacity="0.4"/>
-<circle class="ic" cx="75" cy="80" r="13" fill="url(#g2)" filter="url(#sh)"/>
-<polyline points="68,80 72,85 82,73" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="26" y1="32" x2="72" y2="32" stroke="#6366f1" stroke-width="2.5"/>
+<line x1="26" y1="45" x2="62" y2="45" stroke="#a855f7" stroke-width="2.5"/>
+<line x1="26" y1="58" x2="72" y2="58" stroke="#6366f1" stroke-width="2.5"/>
+<circle class="ic" cx="75" cy="80" r="13" fill="#10b981"/>
+<polyline points="68,80 72,85 82,73" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 <div class="hd">
 <h1>FatturaView</h1>
@@ -90,10 +75,11 @@ box-shadow:0 4px 12px rgba(99,102,241,0.4)}
 <span class="b b3">PDF</span>
 </div>
 </div>
-<div class="st"><div class="n">1</div><div><b>Apri Archivio</b><span class="txt">File - Apri archivio ZIP</span></div></div>
-<div class="st"><div class="n">2</div><div><b>Seleziona Fattura</b><span class="txt">Doppio click nella lista</span></div></div>
-<div class="st"><div class="n">3</div><div><b>Applica Stile</b><span class="txt">Ministero o Assosoftware</span></div></div>
-<div class="st"><div class="n">4</div><div><b>Stampa PDF</b><span class="txt">File - Stampa fatture</span></div></div>
+<div class="st"><div class="n">1</div><div class="st-inner"><b>Apri Archivio</b><span class="txt">File - Apri archivio ZIP</span></div></div>
+<div class="st"><div class="n">2</div><div class="st-inner"><b>Seleziona Fattura</b><span class="txt">Doppio click nella lista</span></div></div>
+<div class="st"><div class="n">3</div><div class="st-inner"><b>Applica Stile</b><span class="txt">Ministero o Assosoftware</span></div></div>
+<div class="st"><div class="n">4</div><div class="st-inner"><b>Stampa PDF</b><span class="txt">File - Stampa fatture</span></div></div>
 </div>
+</td></tr></table>
 </body>
 </html>
