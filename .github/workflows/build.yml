@@ -111,9 +111,18 @@ jobs:
             /m `
             /nologo
 
+      - name: Prepara pacchetto distribuibile
+        run: |
+          New-Item -ItemType Directory -Force -Path dist\windows
+          Copy-Item x64\Release\FatturaView.exe   dist\windows\
+          Copy-Item Resources                      dist\windows\Resources -Recurse
+          Copy-Item README.md                      dist\windows\
+          Copy-Item GUIDA_USO.md                   dist\windows\
+          Copy-Item TROUBLESHOOTING.md             dist\windows\
+
       - name: Carica artefatto Windows
         uses: actions/upload-artifact@v4
         with:
           name: FatturaView-Windows-x64
-          path: x64/Release/FatturaView.exe
+          path: dist/windows/
           retention-days: 30
