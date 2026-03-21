@@ -28,7 +28,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build pkg-config \
             libxml2-dev libxslt1-dev libzip-dev \
+            libcups2-dev \
             libgl1-mesa-dev libgles2-mesa-dev \
+            libvulkan-dev \
             libxkbcommon-dev libxkbcommon-x11-0 \
             libxcb-icccm4-dev libxcb-image0-dev \
             libxcb-keysyms1-dev libxcb-render-util0-dev \
