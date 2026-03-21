@@ -310,7 +310,7 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizzatore Fatture Elettroniche</title>
+    <title>FatturaView</title>
     <style>
         * {
             margin: 0;
@@ -379,7 +379,7 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
 <body>
     <div class="container">
         <div class="icon">&#128196;</div>
-        <h1>Visualizzatore Fatture Elettroniche</h1>
+        <h1>FatturaView</h1>
         <p style="font-size: 1.1em; opacity: 0.9;">Benvenuto nel lettore di fatture XML italiane</p>
 
         <div class="instructions">
@@ -416,36 +416,97 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     std::wstring html;
     html = L"<!DOCTYPE html><html lang=\"it\"><head>";
     html += L"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">";
-    html += L"<title>Visualizzatore Fatture</title><style>";
+    html += L"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
+    html += L"<title>FatturaView</title><style>";
     html += L"*{margin:0;padding:0;box-sizing:border-box;}";
     html += L"html,body{width:100%;height:100%;overflow:auto;}";
-    html += L"body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#0078d4 0%,#005a9e 100%);padding:30px;}";
-    html += L".container{text-align:center;padding:50px 40px;background:#fff;border-radius:16px;";
-    html += L"box-shadow:0 10px 40px rgba(0,0,0,0.15);max-width:800px;margin:0 auto;}";
-    html += L"h1{font-size:2.2em;margin-bottom:8px;color:#0078d4;font-weight:600;}";
-    html += L".subtitle{font-size:1.1em;color:#605e5c;margin-bottom:10px;}";
-    html += L".version-info{font-size:0.9em;color:#8a8886;margin-top:8px;}";
-    html += L".icon{font-size:3.5em;margin-bottom:20px;color:#0078d4;}";
-    html += L".instructions{text-align:left;margin-top:30px;background:#f0f7ff;padding:25px;border-radius:12px;border-left:4px solid #0078d4;}";
-    html += L".instructions-title{color:#0078d4;font-size:1.3em;font-weight:600;margin-bottom:20px;}";
-    html += L".step{background:#fff;border-left:3px solid #0078d4;padding:15px;margin:12px 0;border-radius:6px;}";
-    html += L".step:hover{background:#f3f2f1;}";
-    html += L".step-number{display:inline-block;width:32px;height:32px;background:#0078d4;color:#fff;";
-    html += L"border-radius:50%;text-align:center;line-height:32px;font-weight:600;margin-right:12px;}";
-    html += L"strong{color:#323130;font-size:1.05em;}";
-    html += L".footer{margin-top:30px;padding-top:20px;border-top:2px solid #edebe9;color:#8a8886;font-size:0.9em;}";
+    html += L"body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;";
+    html += L"background:linear-gradient(145deg,#0078d4 0%,#106ebe 50%,#005a9e 100%);";
+    html += L"padding:40px 20px;}";
+    html += L".container{text-align:center;padding:60px 50px;background:rgba(255,255,255,0.98);";
+    html += L"border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-width:900px;margin:0 auto;}";
+    html += L".icon{margin-bottom:22px;display:flex;justify-content:center;"
+        L"filter:drop-shadow(0 10px 28px rgba(0,80,160,0.55));"
+        L"animation:floatIcon 3.2s ease-in-out infinite;}"
+        L"@keyframes floatIcon{0%,100%{transform:translateY(0px)}"
+        L"50%{transform:translateY(-12px)}}";
+    html += L"h1{font-size:2.8em;margin-bottom:12px;color:#0078d4;font-weight:700;}";
+    html += L".subtitle{font-size:1.25em;color:#605e5c;margin-bottom:8px;font-weight:500;}";
+    html += L".version-info{font-size:1em;color:#8a8886;margin-top:10px;padding:8px 20px;";
+    html += L"background:#f3f2f1;border-radius:20px;display:inline-block;}";
+    html += L".badge{background:#0078d4;color:#fff;padding:5px 15px;";
+    html += L"border-radius:15px;font-size:0.85em;margin-left:8px;font-weight:600;}";
+    html += L".instructions{text-align:left;margin-top:40px;background:#f0f7ff;";
+    html += L"padding:30px;border-radius:16px;box-shadow:0 4px 20px rgba(0,120,212,0.1);}";
+    html += L".instructions-title{color:#0078d4;font-size:1.5em;font-weight:700;margin-bottom:25px;";
+    html += L"text-align:center;}";
+    html += L".steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;}";
+    html += L".step{background:#fff;padding:20px;border-radius:12px;";
+    html += L"box-shadow:0 4px 15px rgba(0,0,0,0.08);transition:all 0.3s ease;";
+    html += L"border-left:4px solid #0078d4;}";
+    html += L".step:hover{transform:translateY(-5px);box-shadow:0 8px 25px rgba(0,120,212,0.2);}";
+    html += L".step-number{display:inline-block;width:40px;height:40px;";
+    html += L"background:#0078d4;color:#fff;";
+    html += L"border-radius:50%;text-align:center;line-height:40px;font-weight:700;font-size:1.2em;";
+    html += L"margin-bottom:12px;}";
+    html += L".step-title{color:#0078d4;font-size:1.1em;font-weight:700;margin-bottom:6px;}";
+    html += L".step-desc{color:#605e5c;font-size:0.95em;line-height:1.5;}";
+    html += L".footer{margin-top:35px;padding-top:25px;border-top:2px solid #e1dfdd;";
+    html += L"color:#8a8886;font-size:0.95em;}";
+    html += L".features{display:flex;justify-content:center;gap:25px;margin-top:25px;flex-wrap:wrap;}";
+    html += L".feature-badge{background:#fff;padding:12px 24px;border-radius:25px;";
+    html += L"box-shadow:0 2px 10px rgba(0,0,0,0.08);font-size:0.9em;color:#323130;font-weight:600;}";
     html += L"</style></head><body><div class=\"container\">";
-    html += L"<div class=\"icon\">&#128196;</div>";
-    html += L"<h1>Visualizzatore Fatture Elettroniche</h1>";
-    html += L"<p class=\"subtitle\">Lettore per FatturaPA XML</p>";
-    html += L"<p class=\"version-info\">v1.0.0 - Roberto Ferri</p>";
-    html += L"<div class=\"instructions\"><div class=\"instructions-title\">Guida Rapida</div>";
-    html += L"<div class=\"step\"><span class=\"step-number\">1</span><strong>Apri ZIP</strong><br>Toolbar o Menu File</div>";
-    html += L"<div class=\"step\"><span class=\"step-number\">2</span><strong>Seleziona</strong><br>Click o Ctrl+Click</div>";
-    html += L"<div class=\"step\"><span class=\"step-number\">3</span><strong>Visualizza</strong><br>Pulsanti Ministero/Assosoftware</div>";
-    html += L"<div class=\"step\"><span class=\"step-number\">4</span><strong>Stampa</strong><br>Icone stampa in toolbar</div>";
-    html += L"</div><div class=\"footer\"><p>&copy; 2026 Roberto Ferri</p></div>";
-    html += L"</div></body></html>";
+    html += L"<div class=\"icon\">";
+    html += L"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"128\" height=\"128\">";
+    html += L"<defs>";
+    html += L"<linearGradient id=\"fvbg\" x1=\"0\" y1=\"1\" x2=\"1\" y2=\"0\">";
+    html += L"<stop offset=\"0%\" stop-color=\"#002d6e\"/><stop offset=\"100%\" stop-color=\"#0078d4\"/>"
+        L"</linearGradient>";
+    html += L"</defs>";
+    html += L"<rect x=\"1\" y=\"1\" width=\"98\" height=\"98\" rx=\"20\" fill=\"url(#fvbg)\"/>";
+    html += L"<ellipse cx=\"36\" cy=\"24\" rx=\"32\" ry=\"18\" fill=\"rgba(255,255,255,0.11)\"/>";
+    html += L"<rect x=\"22\" y=\"17\" width=\"46\" height=\"57\" rx=\"5\" fill=\"rgba(255,255,255,0.93)\"/>";
+    html += L"<polygon points=\"57,17 68,17 68,28 57,28\" fill=\"#b8d4ee\"/>";
+    html += L"<line x1=\"57\" y1=\"17\" x2=\"57\" y2=\"28\" stroke=\"#90b6d6\" stroke-width=\"0.9\"/>";
+    html += L"<rect x=\"30\" y=\"37\" width=\"24\" height=\"3.5\" rx=\"1.8\" fill=\"#0078d4\"/>";
+    html += L"<rect x=\"30\" y=\"44\" width=\"18\" height=\"3\" rx=\"1.5\" fill=\"#85b8d8\"/>";
+    html += L"<rect x=\"30\" y=\"51\" width=\"20\" height=\"3\" rx=\"1.5\" fill=\"#85b8d8\"/>";
+    html += L"<circle cx=\"62\" cy=\"63\" r=\"13\" fill=\"rgba(0,0,0,0.15)\" transform=\"translate(1,2)\"/>";
+    html += L"<circle cx=\"62\" cy=\"63\" r=\"13\" fill=\"#0078d4\"/>";
+    html += L"<circle cx=\"62\" cy=\"63\" r=\"11\" fill=\"#005fa3\"/>";
+    html += L"<text x=\"62\" y=\"67.5\" font-family=\"Arial,sans-serif\" font-size=\"15\" "
+        L"font-weight=\"bold\" fill=\"white\" text-anchor=\"middle\">\u20AC</text>";
+    html += L"</svg>";
+    html += L"</div>";
+    html += L"<h1>FatturaView</h1>";
+    html += L"<p class=\"subtitle\">&#128196; Gestione Professionale FatturaPA XML</p>";
+    html += L"<p class=\"version-info\">Roberto Ferri <span class=\"badge\">v1.0.0</span></p>";
+    html += L"<div class=\"features\">";
+    html += L"<div class=\"feature-badge\">&#128194; ZIP e XML</div>";
+    html += L"<div class=\"feature-badge\">&#128424; Stampa Massiva</div>";
+    html += L"<div class=\"feature-badge\">&#127912; Stili Multipli</div>";
+    html += L"</div>";
+    html += L"<div class=\"instructions\">";
+    html += L"<div class=\"instructions-title\">&#128161; Come Iniziare</div>";
+    html += L"<div class=\"steps-grid\">";
+    html += L"<div class=\"step\"><div class=\"step-number\">1</div>";
+    html += L"<div class=\"step-title\">Apri Fatture</div>";
+    html += L"<div class=\"step-desc\">Clicca su 'Apri' nella toolbar o menu File (ZIP o XML)</div></div>";
+    html += L"<div class=\"step\"><div class=\"step-number\">2</div>";
+    html += L"<div class=\"step-title\">Seleziona Fatture</div>";
+    html += L"<div class=\"step-desc\">Click singolo o Ctrl+Click per selezione multipla</div></div>";
+    html += L"<div class=\"step\"><div class=\"step-number\">3</div>";
+    html += L"<div class=\"step-title\">Visualizza</div>";
+    html += L"<div class=\"step-desc\">Scegli foglio stile Ministero o Assosoftware</div></div>";
+    html += L"<div class=\"step\"><div class=\"step-number\">4</div>";
+    html += L"<div class=\"step-title\">Stampa</div>";
+    html += L"<div class=\"step-desc\">Stampa singola, multipla o tutte le fatture</div></div>";
+    html += L"</div></div>";
+    html += L"<div class=\"footer\">";
+    html += L"<p><strong>&copy; 2026 Roberto Ferri</strong></p>";
+    html += L"<p style=\"margin-top:8px;font-size:0.85em;\">FatturaView - Lettore professionale per Fatture Elettroniche PA</p>";
+    html += L"</div></div></body></html>";
     return html;
 }
 
@@ -581,4 +642,25 @@ void FatturaViewer::PrintDocumentSilent(HWND hBrowser)
     VariantInit(&vEmpty);
     pData->pWebBrowser->ExecWB(OLECMDID_PRINT, OLECMDEXECOPT_DONTPROMPTUSER, &vEmpty, &vEmpty);
     VariantClear(&vEmpty);
+}
+
+void FatturaViewer::SetZoom(HWND hBrowser, int zoomPercent)
+{
+    if (!hBrowser)
+        return;
+
+    BrowserData* pData = (BrowserData*)GetWindowLongPtr(hBrowser, GWLP_USERDATA);
+    if (!pData || !pData->pWebBrowser)
+        return;
+
+#ifndef OLECMDID_OPTICAL_ZOOM
+#define OLECMDID_OPTICAL_ZOOM 63
+#endif
+
+    VARIANT vZoom;
+    VariantInit(&vZoom);
+    vZoom.vt = VT_I4;
+    vZoom.lVal = zoomPercent;
+    pData->pWebBrowser->ExecWB((OLECMDID)OLECMDID_OPTICAL_ZOOM, OLECMDEXECOPT_DONTPROMPTUSER, &vZoom, NULL);
+    VariantClear(&vZoom);
 }

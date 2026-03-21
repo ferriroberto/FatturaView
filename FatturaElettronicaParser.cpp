@@ -175,24 +175,75 @@ bool FatturaElettronicaParser::ApplyXsltTransform(const std::wstring& xsltPath, 
     return false;
 }
 
+bool FatturaElettronicaParser::IsFatturaPA(const std::wstring& xmlPath)
+{
+    IXMLDOMDocument2* pDoc = NULL;
+    HRESULT hr = CoCreateInstance(__uuidof(DOMDocument60), NULL, CLSCTX_INPROC_SERVER,
+        __uuidof(IXMLDOMDocument2), (void**)&pDoc);
+    if (FAILED(hr) || !pDoc)
+        return false;
+
+    pDoc->put_async(VARIANT_FALSE);
+
+    VARIANT_BOOL status;
+    hr = pDoc->load(_variant_t(xmlPath.c_str()), &status);
+    if (FAILED(hr) || status != VARIANT_TRUE)
+    {
+        pDoc->Release();
+        return false;
+    }
+
+    IXMLDOMElement* pRoot = NULL;
+    hr = pDoc->get_documentElement(&pRoot);
+    if (FAILED(hr) || !pRoot)
+    {
+        pDoc->Release();
+        return false;
+    }
+
+    BSTR bstrTag = NULL;
+    pRoot->get_tagName(&bstrTag);
+    std::wstring tag = bstrTag ? std::wstring(bstrTag) : L"";
+    SysFreeString(bstrTag);
+    pRoot->Release();
+    pDoc->Release();
+
+    return tag.find(L"FatturaElettronica") != std::wstring::npos;
+}
+
 std::vector<std::wstring> FatturaElettronicaParser::GetXmlFilesFromFolder(const std::wstring& folderPath)
 {
     std::vector<std::wstring> xmlFiles;
     WIN32_FIND_DATAW findData;
-    std::wstring searchPath = folderPath + L"\\*.xml";
 
-    HANDLE hFind = FindFirstFileW(searchPath.c_str(), &findData);
+    std::wstring normalizedPath = folderPath;
+    if (!normalizedPath.empty() && normalizedPath.back() == L'\\')
+        normalizedPath.pop_back();
 
+    HANDLE hFind = FindFirstFileW((normalizedPath + L"\\*").c_str(), &findData);
     if (hFind != INVALID_HANDLE_VALUE)
     {
         do
         {
-            if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             {
-                xmlFiles.push_back(folderPath + L"\\" + findData.cFileName);
+                // Ricorsione nelle sottocartelle (escludi "." e "..")
+                if (wcscmp(findData.cFileName, L".") != 0 && wcscmp(findData.cFileName, L"..") != 0)
+                {
+                    std::wstring subPath = normalizedPath + L"\\" + findData.cFileName;
+                    auto subFiles = GetXmlFilesFromFolder(subPath);
+                    xmlFiles.insert(xmlFiles.end(), subFiles.begin(), subFiles.end());
+                }
+            }
+            else
+            {
+                // Accetta file .xml (case-insensitive)
+                std::wstring name = findData.cFileName;
+                size_t dot = name.find_last_of(L'.');
+                if (dot != std::wstring::npos && _wcsicmp(name.c_str() + dot, L".xml") == 0)
+                    xmlFiles.push_back(normalizedPath + L"\\" + name);
             }
         } while (FindNextFileW(hFind, &findData));
-
         FindClose(hFind);
     }
 
@@ -249,6 +300,26 @@ bool FatturaElettronicaParser::ExtractFatturaInfo(const std::wstring& xmlPath, F
     {
         pTempDoc->Release();
         return false;
+    }
+
+    // Verifica che sia una FatturaPA: il root element deve contenere "FatturaElettronica"
+    IXMLDOMElement* pRoot = NULL;
+    hr = pTempDoc->get_documentElement(&pRoot);
+    if (FAILED(hr) || !pRoot)
+    {
+        pTempDoc->Release();
+        return false;
+    }
+    BSTR bstrRootTag = NULL;
+    pRoot->get_tagName(&bstrRootTag);
+    std::wstring rootTag = bstrRootTag ? std::wstring(bstrRootTag) : L"";
+    SysFreeString(bstrRootTag);
+    pRoot->Release();
+
+    if (rootTag.find(L"FatturaElettronica") == std::wstring::npos)
+    {
+        pTempDoc->Release();
+        return false; // File XML non e' una FatturaPA - ignoralo silenziosamente
     }
 
     // Estrai le informazioni usando XPath

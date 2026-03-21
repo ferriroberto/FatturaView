@@ -22,4 +22,5 @@ public:
     static void CleanupBrowser(HWND hBrowser);
     static void PrintDocument(HWND hBrowser);
     static void PrintDocumentSilent(HWND hBrowser);
+    static void SetZoom(HWND hBrowser, int zoomPercent);
 };

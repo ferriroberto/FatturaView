@@ -72,6 +72,7 @@ public:
     // Nuovi metodi per estrarre informazioni dalle fatture
     bool ExtractFatturaInfo(const std::wstring& xmlPath, FatturaInfo& info);
     std::vector<FatturaInfo> GetFattureInfoFromFolder(const std::wstring& folderPath);
+    bool IsFatturaPA(const std::wstring& xmlPath);
 
 private:
     IXMLDOMDocument2* m_pXmlDoc;

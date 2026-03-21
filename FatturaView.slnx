@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="xmlRead.vcxproj" Id="55618536-2590-4ad9-ada8-dee56ffbb9ee" />
+  <Project Path="FatturaView.vcxproj" Id="55618536-2590-4ad9-ada8-dee56ffbb9ee" />
 </Solution>

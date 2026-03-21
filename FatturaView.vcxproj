@@ -22,7 +22,7 @@
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{55618536-2590-4ad9-ada8-dee56ffbb9ee}</ProjectGuid>
-    <RootNamespace>xmlRead</RootNamespace>
+    <RootNamespace>FatturaView</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -132,19 +132,19 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
-    <ClInclude Include="xmlRead.h" />
+    <ClInclude Include="FatturaView.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FatturaElettronicaParser.cpp" />
     <ClCompile Include="FatturaViewer.cpp" />
-    <ClCompile Include="xmlRead.cpp" />
+    <ClCompile Include="FatturaView.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="xmlRead.rc" />
+    <ResourceCompile Include="FatturaView.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico" />
-    <Image Include="xmlRead.ico" />
+    <Image Include="FatturaView.ico" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />
