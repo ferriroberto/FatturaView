@@ -5,6 +5,7 @@
 #include "FatturaView.h"
 #include "FatturaElettronicaParser.h"
 #include "FatturaViewer.h"
+#include "PdfSigner.h"
 #include <commdlg.h>
 #include <shellapi.h>
 #include <vector>
@@ -82,6 +83,7 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    StylesheetSelector(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    PdfSignConfigDialog(HWND, UINT, WPARAM, LPARAM);
 void                OnOpenFile(HWND hWnd);
 void                OnApplyStylesheet(HWND hWnd);
 void                OnApplySpecificStylesheet(HWND hWnd, const std::wstring& keyword);
@@ -665,6 +667,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
                 break;
             }
+            case IDM_PDF_SIGN_CONFIG:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_PDF_SIGN_CONFIG), hWnd, PdfSignConfigDialog);
+                break;
             case IDC_LISTBOX_FATTURE:
                 if (HIWORD(wParam) == LBN_SELCHANGE)
                 {
@@ -940,6 +945,99 @@ INT_PTR CALLBACK StylesheetSelector(HWND hDlg, UINT message, WPARAM wParam, LPAR
                 }
             }
 
+            EndDialog(hDlg, IDOK);
+            return (INT_PTR)TRUE;
+        }
+        else if (LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, IDCANCEL);
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
+}
+
+// Dialog procedure per la configurazione della firma PDF
+INT_PTR CALLBACK PdfSignConfigDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    static PdfSignConfig config;
+
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        {
+            // Carica la configurazione salvata
+            PdfSigner::LoadConfig(config);
+
+            // Imposta i valori nei controlli
+            CheckDlgButton(hDlg, IDC_ENABLE_SIGNING, config.enabled ? BST_CHECKED : BST_UNCHECKED);
+            SetDlgItemTextW(hDlg, IDC_CERT_PATH, config.certPath.c_str());
+            SetDlgItemTextW(hDlg, IDC_CERT_PASSWORD, config.certPassword.c_str());
+            SetDlgItemTextW(hDlg, IDC_SIGN_REASON, config.signReason.c_str());
+            SetDlgItemTextW(hDlg, IDC_SIGN_LOCATION, config.signLocation.c_str());
+            SetDlgItemTextW(hDlg, IDC_SIGN_CONTACT, config.signContact.c_str());
+
+            return (INT_PTR)TRUE;
+        }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDC_CERT_BROWSE)
+        {
+            // Apri dialog per selezionare il certificato
+            std::wstring certPath = OpenFileDialog(hDlg, 
+                L"Certificati Digitali (*.pfx;*.p12)\0*.pfx;*.p12\0Tutti i file (*.*)\0*.*\0",
+                L"Seleziona Certificato Digitale");
+
+            if (!certPath.empty())
+            {
+                SetDlgItemTextW(hDlg, IDC_CERT_PATH, certPath.c_str());
+            }
+            return (INT_PTR)TRUE;
+        }
+        else if (LOWORD(wParam) == IDOK)
+        {
+            // Salva la configurazione
+            config.enabled = (IsDlgButtonChecked(hDlg, IDC_ENABLE_SIGNING) == BST_CHECKED);
+
+            WCHAR buffer[MAX_PATH];
+            GetDlgItemTextW(hDlg, IDC_CERT_PATH, buffer, MAX_PATH);
+            config.certPath = buffer;
+
+            GetDlgItemTextW(hDlg, IDC_CERT_PASSWORD, buffer, MAX_PATH);
+            config.certPassword = buffer;
+
+            GetDlgItemTextW(hDlg, IDC_SIGN_REASON, buffer, MAX_PATH);
+            config.signReason = buffer;
+
+            GetDlgItemTextW(hDlg, IDC_SIGN_LOCATION, buffer, MAX_PATH);
+            config.signLocation = buffer;
+
+            GetDlgItemTextW(hDlg, IDC_SIGN_CONTACT, buffer, MAX_PATH);
+            config.signContact = buffer;
+
+            // Verifica che se abilitato, il certificato sia specificato
+            if (config.enabled && config.certPath.empty())
+            {
+                MessageBoxW(hDlg, L"Specificare il percorso del certificato digitale!", L"Attenzione", MB_OK | MB_ICONWARNING);
+                return (INT_PTR)TRUE;
+            }
+
+            // Verifica che il certificato esista
+            if (config.enabled && GetFileAttributesW(config.certPath.c_str()) == INVALID_FILE_ATTRIBUTES)
+            {
+                MessageBoxW(hDlg, L"Il certificato specificato non esiste!", L"Errore", MB_OK | MB_ICONERROR);
+                return (INT_PTR)TRUE;
+            }
+
+            // Salva la configurazione
+            if (!PdfSigner::SaveConfig(config))
+            {
+                MessageBoxW(hDlg, L"Impossibile salvare la configurazione!", L"Errore", MB_OK | MB_ICONERROR);
+                return (INT_PTR)TRUE;
+            }
+
+            MessageBoxW(hDlg, L"Configurazione salvata con successo!", L"Successo", MB_OK | MB_ICONINFORMATION);
             EndDialog(hDlg, IDOK);
             return (INT_PTR)TRUE;
         }
@@ -1693,8 +1791,11 @@ void OnPrintToPDF(HWND hWnd)
         for (auto& c : fileUrl)
             if (c == L'\\') c = L'/';
 
-        std::wstring params = L"--headless=new --disable-gpu --no-margins --no-pdf-header-footer --print-to-pdf=\""
-            + pdfPath + L"\" \"" + fileUrl + L"\"";
+        // Parametri Edge con metadati PDF per ridurre avvisi di sicurezza
+        std::wstring params = L"--headless=new --disable-gpu --no-margins --no-pdf-header-footer "
+            L"--enable-features=NetworkService,NetworkServiceInProcess "
+            L"--disable-features=IsolateOrigins,site-per-process "
+            L"--print-to-pdf=\"" + pdfPath + L"\" \"" + fileUrl + L"\"";
 
         SHELLEXECUTEINFOW sei = { sizeof(sei) };
         sei.fMask        = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
@@ -1713,6 +1814,34 @@ void OnPrintToPDF(HWND hWnd)
 
         if (GetFileAttributesW(pdfPath.c_str()) != INVALID_FILE_ATTRIBUTES)
         {
+            // Firma il PDF se configurato
+            PdfSignConfig signConfig;
+            if (PdfSigner::LoadConfig(signConfig) && signConfig.enabled)
+            {
+                if (g_hStatusBar)
+                {
+                    SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Firma digitale del PDF in corso...");
+                    UpdateWindow(g_hStatusBar);
+                }
+
+                std::wstring errorMsg;
+                hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
+                bool signSuccess = PdfSigner::SignPdf(pdfPath, signConfig, errorMsg);
+                SetCursor(hOldCursor);
+
+                if (!signSuccess)
+                {
+                    std::wstring msg = L"Errore durante la firma del PDF:\n" + errorMsg + 
+                                      L"\n\nIl PDF non firmato sarà comunque aperto.";
+                    MessageBoxW(hWnd, msg.c_str(), L"Avviso", MB_OK | MB_ICONWARNING);
+                }
+                else
+                {
+                    if (g_hStatusBar)
+                        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"PDF firmato digitalmente");
+                }
+            }
+
             ShellExecuteW(hWnd, L"open", pdfPath.c_str(), NULL, NULL, SW_SHOW);
             if (g_hStatusBar)
                 SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"PDF generato e aperto");

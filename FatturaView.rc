@@ -55,6 +55,7 @@ BEGIN
     POPUP "   &Impostazioni"
     BEGIN
         MENUITEM "&Seleziona foglio di stile...", IDM_SETTINGS_SELECT_STYLESHEET
+        MENUITEM "&Configurazione firma PDF...", IDM_PDF_SIGN_CONFIG
     END
     POPUP "   &?"
     BEGIN
@@ -105,6 +106,32 @@ BEGIN
     LTEXT           "",IDC_STYLESHEET_PREVIEW,14,180,332,8
     DEFPUSHBUTTON   "OK",IDOK,250,199,50,14
     PUSHBUTTON      "Annulla",IDCANCEL,304,199,50,14
+END
+
+IDD_PDF_SIGN_CONFIG DIALOGEX 0, 0, 400, 280
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Configurazione Firma Digitale PDF"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX        "Certificato Digitale",IDC_STATIC,14,10,372,90
+    CONTROL         "Abilita firma digitale automatica dei PDF",IDC_ENABLE_SIGNING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,24,24,200,10
+    LTEXT           "Percorso certificato (.pfx/.p12):",IDC_STATIC,24,42,150,8
+    EDITTEXT        IDC_CERT_PATH,24,54,300,14,ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON      "Sfoglia...",IDC_CERT_BROWSE,330,54,50,14
+    LTEXT           "Password certificato:",IDC_STATIC,24,74,150,8
+    EDITTEXT        IDC_CERT_PASSWORD,24,86,200,14,ES_PASSWORD | ES_AUTOHSCROLL
+
+    GROUPBOX        "Informazioni Firma",IDC_STATIC,14,110,372,130
+    LTEXT           "Motivo della firma:",IDC_STATIC,24,126,150,8
+    EDITTEXT        IDC_SIGN_REASON,24,138,352,14,ES_AUTOHSCROLL
+    LTEXT           "Località:",IDC_STATIC,24,158,150,8
+    EDITTEXT        IDC_SIGN_LOCATION,24,170,352,14,ES_AUTOHSCROLL
+    LTEXT           "Contatto:",IDC_STATIC,24,190,150,8
+    EDITTEXT        IDC_SIGN_CONTACT,24,202,352,14,ES_AUTOHSCROLL
+    LTEXT           "Nota: La firma digitale richiede PowerShell e .NET Framework",IDC_STATIC,24,220,340,8
+
+    DEFPUSHBUTTON   "Salva",IDOK,240,256,70,18
+    PUSHBUTTON      "Annulla",IDCANCEL,316,256,70,18
 END
 
 /////////////////////////////////////////////////////////////////////////////

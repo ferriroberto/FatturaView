@@ -12,6 +12,9 @@ Applicazione Windows per la visualizzazione di fatture elettroniche XML italiane
   - Foglio di stile Ministero dell'Economia
   - Foglio di stile Assosoftware
 - **Visualizzazione integrata**: WebBrowser incorporato per vedere le fatture direttamente nell'applicazione
+- **Generazione PDF**: Converti fatture in PDF usando Microsoft Edge headless
+- **Firma digitale PDF**: Firma automaticamente i PDF generati con certificato digitale (elimina avvisi di sicurezza)
+- **Selezione multipla**: Genera PDF da più fatture contemporaneamente
 - **Memoria foglio di stile**: Ricorda l'ultimo foglio di stile usato per applicazioni successive
 
 ## Utilizzo
@@ -36,6 +39,17 @@ Applicazione Windows per la visualizzazione di fatture elettroniche XML italiane
 - Menu: **Visualizza → Cambia foglio di stile...**
 - Selezionare un nuovo file XSLT
 - La fattura corrente viene ricaricata con il nuovo stile
+
+### 4. Generare PDF
+- Selezionare una o più fatture dalla lista
+- Menu: **File → Stampa fatture selezionate (PDF)**
+- Il PDF viene generato e aperto automaticamente
+
+### 5. Configurare la firma digitale (opzionale)
+- Menu: **Impostazioni → Configurazione firma PDF...**
+- Abilita la firma digitale e configura il certificato
+- I PDF generati saranno automaticamente firmati
+- **Vedi GUIDA_FIRMA_DIGITALE.md per istruzioni dettagliate**
 
 ## Layout dell'interfaccia
 
@@ -70,9 +84,14 @@ Applicazione Windows per la visualizzazione di fatture elettroniche XML italiane
 - URL: https://github.com/assosoftware/
 
 ## Requisiti
-- Windows 7 o superiore
+- Windows 7 o superiore (Windows 10/11 raccomandato)
 - MSXML 6.0 (incluso in Windows)
 - Internet Explorer 11+ (per il controllo WebBrowser)
+- Microsoft Edge (per generazione PDF)
+- **Per firma digitale PDF**:
+  - PowerShell 3.0+ (incluso in Windows 8+)
+  - .NET Framework 4.5+ (incluso in Windows 8+)
+  - Certificato digitale in formato .pfx o .p12
 - **Importante**: Se il pannello destro non visualizza le fatture, consultare il file TROUBLESHOOTING.md
 
 ## Risoluzione problemi comuni

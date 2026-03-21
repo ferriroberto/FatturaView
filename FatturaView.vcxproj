@@ -129,6 +129,7 @@
   <ItemGroup>
     <ClInclude Include="FatturaElettronicaParser.h" />
     <ClInclude Include="FatturaViewer.h" />
+    <ClInclude Include="PdfSigner.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
@@ -137,6 +138,7 @@
   <ItemGroup>
     <ClCompile Include="FatturaElettronicaParser.cpp" />
     <ClCompile Include="FatturaViewer.cpp" />
+    <ClCompile Include="PdfSigner.cpp" />
     <ClCompile Include="FatturaView.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -148,10 +150,17 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />
+    <None Include="GUIDA_FIRMA_DIGITALE.md" />
     <None Include="GUIDA_USO.md" />
+    <None Include="GUIDA_RISOLUZIONE_AVVISO_FOXIT.md" />
+    <None Include="RISPOSTA_AVVISO_FOXIT.md" />
+    <None Include="FIX_EXECUTION_POLICY.md" />
+    <None Include="EXECUTION_POLICY_RISOLTO.md" />
     <None Include="README.md" />
     <None Include="TROUBLESHOOTING.md" />
     <None Include="welcome.html" />
+    <None Include="SignExecutable.ps1" />
+    <None Include="SignExecutable.bat" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="esempio_fattura_test.xml" />
