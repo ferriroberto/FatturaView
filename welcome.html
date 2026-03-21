@@ -8,7 +8,7 @@
 html,body{width:100%;height:100%;overflow:hidden}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
 background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-display:flex;align-items:center;justify-content:center;color:#fff;position:relative}
+display:flex;align-items:center;justify-content:center;position:relative}
 body::before{content:'';position:absolute;width:200%;height:200%;
 background:radial-gradient(circle at 20% 50%,rgba(120,119,198,0.3) 0%,transparent 50%),
 radial-gradient(circle at 80% 80%,rgba(138,75,175,0.3) 0%,transparent 50%);
@@ -20,30 +20,30 @@ animation:drift 20s ease-in-out infinite;z-index:0}
 50%{filter:drop-shadow(0 0 16px rgba(16,185,129,0.9))}}
 @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .c{position:relative;z-index:1;text-align:center;padding:24px;
-background:rgba(255,255,255,0.12);backdrop-filter:blur(16px) saturate(180%);
-border-radius:20px;max-width:480px;
-box-shadow:0 8px 32px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.3);
-border:1px solid rgba(255,255,255,0.18)}
+background:rgba(255,255,255,0.95);backdrop-filter:blur(16px) saturate(180%);
+border-radius:20px;max-width:480px;color:#1f2937;
+box-shadow:0 8px 32px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.5);
+border:1px solid rgba(255,255,255,0.6)}
 .i{width:64px;height:64px;margin:0 auto 12px;animation:float 3s ease-in-out infinite}
 .ic{animation:glow 2s ease-in-out infinite}
 h1{font-size:1.75em;margin-bottom:4px;font-weight:700;letter-spacing:-0.02em;
-text-shadow:0 2px 12px rgba(0,0,0,0.25)}
-.s{font-size:0.85em;opacity:.92;margin-bottom:16px;font-weight:500;letter-spacing:0.01em}
-.st{background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);
+color:#111827;text-shadow:none}
+.s{font-size:0.85em;color:#4b5563;margin-bottom:16px;font-weight:500;letter-spacing:0.01em}
+.st{background:rgba(102,126,234,0.08);backdrop-filter:blur(8px);
 padding:10px 12px;margin:8px 0;border-radius:12px;text-align:left;display:flex;
-align-items:center;font-size:0.88em;transition:all 0.3s ease;
-border:1px solid rgba(255,255,255,0.15);animation:slideIn 0.5s ease-out backwards}
+align-items:center;font-size:0.88em;transition:all 0.3s ease;color:#374151;
+border:1px solid rgba(102,126,234,0.15);animation:slideIn 0.5s ease-out backwards}
 .st:nth-child(1){animation-delay:0.1s}
 .st:nth-child(2){animation-delay:0.2s}
 .st:nth-child(3){animation-delay:0.3s}
 .st:nth-child(4){animation-delay:0.4s}
-.st:hover{background:rgba(255,255,255,0.22);transform:translateX(4px);
-box-shadow:0 4px 12px rgba(0,0,0,0.15)}
-.n{width:28px;height:28px;background:linear-gradient(135deg,#fff 0%,#f0f0f0 100%);
-color:#667eea;border-radius:50%;text-align:center;line-height:28px;
+.st:hover{background:rgba(102,126,234,0.15);transform:translateX(4px);
+box-shadow:0 4px 12px rgba(102,126,234,0.2)}
+.n{width:28px;height:28px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+color:#fff;border-radius:50%;text-align:center;line-height:28px;
 font-weight:700;margin-right:10px;flex-shrink:0;font-size:0.9em;
-box-shadow:0 2px 8px rgba(0,0,0,0.15)}
-.st b{display:block;margin-bottom:2px;font-size:1.05em}
+box-shadow:0 2px 8px rgba(102,126,234,0.3)}
+.st b{display:block;margin-bottom:2px;font-size:1.05em;color:#111827}
 .st div{line-height:1.4}
 </style>
 </head>
@@ -71,10 +71,10 @@ box-shadow:0 2px 8px rgba(0,0,0,0.15)}
 </svg>
 <h1>FatturaView</h1>
 <p class="s">Visualizzatore Professionale Fatture Elettroniche PA</p>
-<div class="st"><span class="n">1</span><div><b>Apri ZIP</b><br>File → Apri archivio ZIP</div></div>
+<div class="st"><span class="n">1</span><div><b>Apri ZIP</b><br>File - Apri archivio ZIP</div></div>
 <div class="st"><span class="n">2</span><div><b>Seleziona fattura</b><br>Doppio click nella lista</div></div>
-<div class="st"><span class="n">3</span><div><b>Applica stile</b><br>Visualizza → Ministero/Assosoftware</div></div>
-<div class="st"><span class="n">4</span><div><b>Stampa PDF</b><br>File → Stampa fatture</div></div>
+<div class="st"><span class="n">3</span><div><b>Applica stile</b><br>Visualizza - Ministero/Assosoftware</div></div>
+<div class="st"><span class="n">4</span><div><b>Stampa PDF</b><br>File - Stampa fatture</div></div>
 </div>
 </body>
 </html>
