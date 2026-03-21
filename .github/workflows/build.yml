@@ -54,14 +54,14 @@ jobs:
           cache:     true
 
       # -----------------------------------------------------------------------
-      # 4. Configurazione CMake
+      # 4. Configurazione CMake (prefisso = AppDir/usr per linuxdeploy)
       # -----------------------------------------------------------------------
       - name: Configura CMake
         run: |
           cmake -S linux -B linux/build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/dist/linux
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/AppDir/usr
 
       # -----------------------------------------------------------------------
       # 5. Build
@@ -70,22 +70,60 @@ jobs:
         run: cmake --build linux/build --config Release --parallel
 
       # -----------------------------------------------------------------------
-      # 6. Installa nella cartella dist/
+      # 6. Installa in AppDir e aggiunge icona + Resources
       # -----------------------------------------------------------------------
-      - name: Installa artefatti
+      - name: Prepara AppDir
         run: |
           cmake --install linux/build
-          mkdir -p dist/linux/share/fatturaview
-          cp -r Resources dist/linux/share/fatturaview/
+
+          # Resources (fogli di stile XSL)
+          mkdir -p AppDir/usr/share/fatturaview/Resources
+          cp -r Resources/. AppDir/usr/share/fatturaview/Resources/
+
+          # Icona (256x256 PNG richiesta da linuxdeploy)
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          ICON_SRC=""
+          for f in FatturaView_icon.png FatturaView_new.png FatturaView_icon.png; do
+            [ -f "$f" ] && ICON_SRC="$f" && break
+          done
+          if [ -n "$ICON_SRC" ]; then
+            cp "$ICON_SRC" AppDir/usr/share/icons/hicolor/256x256/apps/fatturaview.png
+          else
+            # Fallback: converte l'ICO Windows in PNG
+            sudo apt-get install -y --no-install-recommends imagemagick
+            convert FatturaView.ico[0] -resize 256x256 \
+              AppDir/usr/share/icons/hicolor/256x256/apps/fatturaview.png
+          fi
 
       # -----------------------------------------------------------------------
-      # 7. Carica artefatto scaricabile da GitHub
+      # 7. Crea AppImage autocontenuta (Qt + sistema + tutte le librerie)
       # -----------------------------------------------------------------------
-      - name: Carica artefatto Linux
+      - name: Crea AppImage
+        run: |
+          wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          wget -q "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          export EXTRA_QT_PLUGINS="webenginewidgets;webenginecore;webchannel;positioning;printsupport"
+          export EXTRA_PLATFORM_PLUGINS="libqxcb.so;libqwayland-egl.so;libqwayland-generic.so"
+
+          ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage
+
+          # Rinomina con nome versione stabile
+          mv FatturaView*.AppImage FatturaView-Linux-x64.AppImage
+
+      # -----------------------------------------------------------------------
+      # 8. Carica AppImage scaricabile da GitHub
+      # -----------------------------------------------------------------------
+      - name: Carica AppImage Linux
         uses: actions/upload-artifact@v4
         with:
           name: FatturaView-Linux-x64
-          path: dist/linux/
+          path: FatturaView-Linux-x64.AppImage
           retention-days: 30
 
   # ---------------------------------------------------------------------------
