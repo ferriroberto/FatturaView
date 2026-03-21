@@ -12,6 +12,7 @@
 #include <string>
 #include <algorithm>
 #include <commctrl.h>
+#include <windowsx.h>  // Per GET_X_LPARAM e GET_Y_LPARAM
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "msimg32.lib")  // Per GradientFill
@@ -640,6 +641,54 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case IDM_PRINT_SELECTED:
                 OnPrintToPDF(hWnd);
                 break;
+            case IDM_CONTEXT_PRINT_SELECTED:
+                // Stampa le fatture selezionate tramite menu contestuale
+                OnPrintToPDF(hWnd);
+                break;
+            case IDM_CONTEXT_CHANGE_STYLE:
+                // Apri il dialogo di selezione foglio di stile
+                if (DialogBox(hInst, MAKEINTRESOURCE(IDD_STYLESHEET_SELECTOR), hWnd, StylesheetSelector) == IDOK && !g_lastXsltPath.empty())
+                {
+                    std::vector<int> selectedIndices = GetSelectedFattureIndices();
+                    if (!selectedIndices.empty())
+                    {
+                        if (selectedIndices.size() == 1)
+                        {
+                            // Singola fattura - imposta il path corrente e applica
+                            g_currentXmlPath = g_fattureInfo[selectedIndices[0]].filePath;
+                            if (g_pParser && g_pParser->LoadXmlFile(g_currentXmlPath))
+                            {
+                                // Usa il foglio selezionato
+                                std::wstring htmlOutput;
+                                if (g_pParser->ApplyXsltTransform(g_lastXsltPath, htmlOutput))
+                                {
+                                    std::wstring htmlPath = g_extractPath + L"fattura_visualizzata.html";
+                                    FatturaViewer::SaveHTMLToFile(htmlOutput, htmlPath);
+                                    if (g_hBrowserWnd)
+                                        FatturaViewer::NavigateToHTML(g_hBrowserWnd, htmlPath);
+                                    if (g_hStatusBar)
+                                        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Fattura visualizzata");
+                                    if (g_hBrowserWnd)
+                                        FatturaViewer::ShowNotification(g_hBrowserWnd, L"Fattura visualizzata", L"success");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Multiple fatture
+                            OnApplyStylesheetMultiple(hWnd, g_lastXsltPath, selectedIndices);
+                        }
+                    }
+                }
+                break;
+            case IDM_CONTEXT_VIEW_MINISTERO:
+                // Applica foglio Ministero alla fattura selezionata
+                OnApplySpecificStylesheet(hWnd, L"Ministero");
+                break;
+            case IDM_CONTEXT_VIEW_ASSOSOFTWARE:
+                // Applica foglio Assosoftware alla fattura selezionata
+                OnApplySpecificStylesheet(hWnd, L"Asso");
+                break;
             case IDM_SETTINGS_SELECT_STYLESHEET:
             {
                 if (DialogBox(hInst, MAKEINTRESOURCE(IDD_STYLESHEET_SELECTOR), hWnd, StylesheetSelector) == IDOK && !g_lastXsltPath.empty())
@@ -721,6 +770,59 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
+            }
+        }
+        break;
+    case WM_CONTEXTMENU:
+        {
+            // Gestisce il menu contestuale sulla ListBox
+            HWND hWndContext = (HWND)wParam;
+            int xPos = GET_X_LPARAM(lParam);
+            int yPos = GET_Y_LPARAM(lParam);
+
+            // Verifica se il click è sulla ListBox delle fatture
+            if (hWndContext == g_hListBox)
+            {
+                // Ottieni gli indici selezionati
+                std::vector<int> selectedIndices = GetSelectedFattureIndices();
+
+                if (selectedIndices.empty())
+                {
+                    // Nessuna selezione - non mostrare il menu
+                    break;
+                }
+
+                // Crea il menu contestuale
+                HMENU hMenu = CreatePopupMenu();
+
+                if (selectedIndices.size() == 1)
+                {
+                    AppendMenuW(hMenu, MF_STRING, IDM_CONTEXT_VIEW_MINISTERO, L"Visualizza con foglio Ministero");
+                    AppendMenuW(hMenu, MF_STRING, IDM_CONTEXT_VIEW_ASSOSOFTWARE, L"Visualizza con foglio Assosoftware");
+                    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+                    AppendMenuW(hMenu, MF_STRING, IDM_CONTEXT_CHANGE_STYLE, L"Cambia foglio di stile...");
+                    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+                    AppendMenuW(hMenu, MF_STRING, IDM_CONTEXT_PRINT_SELECTED, L"Stampa fattura");
+                }
+                else
+                {
+                    std::wstring printText = L"Stampa " + std::to_wstring(selectedIndices.size()) + L" fatture selezionate";
+                    AppendMenuW(hMenu, MF_STRING, IDM_CONTEXT_PRINT_SELECTED, printText.c_str());
+                    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+                    AppendMenuW(hMenu, MF_STRING, IDM_CONTEXT_CHANGE_STYLE, L"Cambia foglio di stile...");
+                }
+
+                // Mostra il menu e ottieni la selezione
+                int cmd = TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD, 
+                                        xPos, yPos, 0, hWnd, NULL);
+
+                // Gestisci la selezione
+                if (cmd != 0)
+                {
+                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(cmd, 0), 0);
+                }
+
+                DestroyMenu(hMenu);
             }
         }
         break;
