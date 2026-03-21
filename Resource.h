@@ -56,6 +56,7 @@
 #define IDC_SIGN_REASON			1012
 #define IDC_SIGN_LOCATION		1013
 #define IDC_SIGN_CONTACT		1014
+#define IDC_ABOUT_SYSLINK		1015
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif

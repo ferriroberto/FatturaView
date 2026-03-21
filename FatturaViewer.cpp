@@ -3,6 +3,8 @@
 #include <shlwapi.h>
 #include <comdef.h>
 #include <ole2.h>
+#include <exdisp.h>
+#include <shellapi.h>
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "ole32.lib")
@@ -11,10 +13,70 @@
 // Struttura per memorizzare il controllo WebBrowser
 struct BrowserData
 {
-    IWebBrowser2* pWebBrowser;
-    IOleObject* pOleObject;
+    IWebBrowser2*     pWebBrowser;
+    IOleObject*       pOleObject;
     IOleInPlaceObject* pInPlaceObject;
-    IOleClientSite* pClientSite;
+    IOleClientSite*   pClientSite;
+    IConnectionPoint* pEventCP;
+    DWORD             dwEventCookie;
+};
+
+// Event sink per intercettare la navigazione e aprire i link http nel browser predefinito
+class BrowserEventSink : public IDispatch
+{
+    LONG m_refCount = 1;
+    HWND m_hParent;
+public:
+    explicit BrowserEventSink(HWND hWnd) : m_hParent(hWnd) {}
+
+    STDMETHOD(QueryInterface)(REFIID riid, void** ppv)
+    {
+        if (riid == IID_IUnknown || riid == IID_IDispatch || riid == DIID_DWebBrowserEvents2)
+        {
+            *ppv = this; AddRef(); return S_OK;
+        }
+        *ppv = nullptr; return E_NOINTERFACE;
+    }
+    STDMETHOD_(ULONG, AddRef)()  { return InterlockedIncrement(&m_refCount); }
+    STDMETHOD_(ULONG, Release)()
+    {
+        ULONG r = InterlockedDecrement(&m_refCount);
+        if (r == 0) delete this;
+        return r;
+    }
+    STDMETHOD(GetTypeInfoCount)(UINT*) { return E_NOTIMPL; }
+    STDMETHOD(GetTypeInfo)(UINT, LCID, ITypeInfo**) { return E_NOTIMPL; }
+    STDMETHOD(GetIDsOfNames)(REFIID, LPOLESTR*, UINT, LCID, DISPID*) { return E_NOTIMPL; }
+    STDMETHOD(Invoke)(DISPID dispid, REFIID, LCID, WORD, DISPPARAMS* pParams,
+                      VARIANT*, EXCEPINFO*, UINT*)
+    {
+        // DISPID 250 = BeforeNavigate2
+        // Args (right-to-left): pDisp[6], URL[5], Flags[4], Target[3], PostData[2], Headers[1], Cancel[0]
+        if (dispid == 250 && pParams && pParams->cArgs >= 7)
+        {
+            // URL può arrivare come VT_BSTR oppure come VT_BYREF|VT_VARIANT che wrappa un VT_BSTR
+            VARIANT* pURL = &pParams->rgvarg[5];
+            BSTR bstrURL = nullptr;
+            if (pURL->vt == VT_BSTR)
+                bstrURL = pURL->bstrVal;
+            else if (pURL->vt == (VT_BYREF | VT_VARIANT) && pURL->pvarVal
+                     && pURL->pvarVal->vt == VT_BSTR)
+                bstrURL = pURL->pvarVal->bstrVal;
+
+            if (bstrURL)
+            {
+                std::wstring url(bstrURL);
+                if (url.rfind(L"http", 0) == 0)
+                {
+                    VARIANT* pCancel = &pParams->rgvarg[0];
+                    if (pCancel->vt == (VT_BOOL | VT_BYREF) && pCancel->pboolVal)
+                        *pCancel->pboolVal = VARIANT_TRUE;
+                    ShellExecuteW(m_hParent, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                }
+            }
+        }
+        return S_OK;
+    }
 };
 
 // Window procedure per il contenitore del browser
@@ -38,6 +100,12 @@ static LRESULT CALLBACK BrowserContainerProc(HWND hWnd, UINT message, WPARAM wPa
             BrowserData* pData = (BrowserData*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
             if (pData)
             {
+                if (pData->pEventCP)
+                {
+                    pData->pEventCP->Unadvise(pData->dwEventCookie);
+                    pData->pEventCP->Release();
+                    pData->pEventCP = NULL;
+                }
                 if (pData->pInPlaceObject)
                 {
                     pData->pInPlaceObject->Release();
@@ -223,6 +291,19 @@ HWND FatturaViewer::CreateBrowserControl(HWND hParent, HINSTANCE hInst, int x, i
     pData->pWebBrowser->put_Silent(VARIANT_TRUE);
 
     SetWindowLongPtr(hContainer, GWLP_USERDATA, (LONG_PTR)pData);
+
+    // Collega il sink eventi per intercettare i link http
+    IConnectionPointContainer* pCPC = nullptr;
+    if (SUCCEEDED(pData->pWebBrowser->QueryInterface(IID_IConnectionPointContainer, (void**)&pCPC)))
+    {
+        if (SUCCEEDED(pCPC->FindConnectionPoint(DIID_DWebBrowserEvents2, &pData->pEventCP)))
+        {
+            BrowserEventSink* pSink = new BrowserEventSink(hContainer);
+            pData->pEventCP->Advise(pSink, &pData->dwEventCookie);
+            pSink->Release();
+        }
+        pCPC->Release();
+    }
 
     return hContainer;
 }
@@ -455,6 +536,9 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     html += L".st-inner{display:inline-block;vertical-align:middle;width:calc(100% - 50px)}";
     html += L".st b{display:block;margin-bottom:2px;font-size:1.05em;color:#1e293b}";
     html += L".st span.txt{line-height:1.4;color:#64748b;font-size:0.92em}";
+    html += L".ft{margin-top:14px;font-size:0.82em;color:#94a3b8}";
+    html += L".ft a{color:#6366f1;text-decoration:none;font-weight:500}";
+    html += L".ft a:hover{text-decoration:underline}";
     html += L"</style></head><body>";
     html += L"<table class=\"wrp\"><tr><td align=\"center\" valign=\"middle\">";
     html += L"<div class=\"c\">";
@@ -490,6 +574,7 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     html += L"<div class=\"st\"><div class=\"n\">2</div><div class=\"st-inner\"><b>Seleziona Fattura</b><span class=\"txt\">Doppio click nella lista</span></div></div>";
     html += L"<div class=\"st\"><div class=\"n\">3</div><div class=\"st-inner\"><b>Applica Stile</b><span class=\"txt\">Ministero o Assosoftware</span></div></div>";
     html += L"<div class=\"st\"><div class=\"n\">4</div><div class=\"st-inner\"><b>Stampa PDF</b><span class=\"txt\">File - Stampa fatture</span></div></div>";
+    html += L"<p class=\"ft\"><a href=\"https://www.fatturaview.it\">www.fatturaview.it</a></p>";
     html += L"</div></td></tr></table></body></html>";
     return html;
 }
@@ -513,24 +598,24 @@ void FatturaViewer::NavigateToString(HWND hBrowser, const std::wstring& htmlCont
 
     VariantClear(&vEmpty);
 
-    // Attendi che il browser sia pronto (controlla ReadyState)
-    READYSTATE readyState;
-    int maxRetries = 100; // Max 5 secondi (50ms * 100)
+    // Attendi che il browser sia pronto (controlla ReadyState) senza bloccare il thread UI
+    READYSTATE readyState = READYSTATE_UNINITIALIZED;
+    int maxRetries = 200; // Max 2 secondi (10ms * 200)
     int retries = 0;
     do
     {
-        Sleep(50);
+        MSG msg;
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        Sleep(10);
         HRESULT hr = pData->pWebBrowser->get_ReadyState(&readyState);
         if (FAILED(hr))
             break;
         retries++;
     } while (readyState != READYSTATE_COMPLETE && retries < maxRetries);
-
-    // Se il browser non è pronto dopo il timeout, prova comunque
-    if (retries >= maxRetries)
-    {
-        Sleep(500); // Attendi ancora mezzo secondo
-    }
 
     // Ottieni il document
     IDispatch* pDisp = NULL;

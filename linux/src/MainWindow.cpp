@@ -228,8 +228,11 @@ void MainWindow::setupStatusBar()
 
     QLabel* lAuthor  = new QLabel("Autore: Roberto Ferri");
     QLabel* lVersion = new QLabel("Versione 1.0.0");
+    QLabel* lSite    = new QLabel("<a href='https://www.fatturaview.it'>www.fatturaview.it</a>");
+    lSite->setOpenExternalLinks(true);
     sb->addPermanentWidget(lAuthor);
     sb->addPermanentWidget(lVersion);
+    sb->addPermanentWidget(lSite);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +270,7 @@ void MainWindow::loadWelcomePage()
     <div class="step">2. Seleziona una fattura dalla lista a sinistra</div>
     <div class="step">3. Usa <strong>Visualizza → Foglio Ministero/Assosoftware</strong></div>
   </div>
-  <p class="hint">Versione 1.0.0 — Roberto Ferri</p>
+  <p class="hint">Versione 1.0.0 — Roberto Ferri — <a href="https://www.fatturaview.it" style="color:#0078d4;text-decoration:none">www.fatturaview.it</a></p>
 </div>
 </body></html>
 )HTML";
@@ -413,12 +416,12 @@ void MainWindow::onFatturaSelectionChanged()
         const int fatturaIdx = m_listToFatturaIdx[row];
         if (fatturaIdx < 0) return;
 
-        applyStylesheetToIndex(fatturaIdx, findStylesheet("Ministero"));
+        applyStylesheetToIndex(fatturaIdx, m_lastXsltPath.isEmpty() ? findStylesheet("Asso") : m_lastXsltPath);
     }
     else if (selected.size() > 1)
     {
         applyStylesheetMultiple(getSelectedFatturaIndices(),
-                                findStylesheet(m_lastXsltPath.isEmpty() ? "Ministero" : ""));
+                                findStylesheet(m_lastXsltPath.isEmpty() ? "Asso" : ""));
     }
 }
 
@@ -459,7 +462,9 @@ void MainWindow::applyStylesheetToIndex(int fatturaIdx, const QString& xsltPath)
     const std::string xmlPath = m_fattureInfo[fatturaIdx].filePath;
     if (!m_parser->LoadXmlFile(xmlPath)) return;
 
-    const QString xslt = xsltPath.isEmpty() ? m_lastXsltPath : xsltPath;
+    const QString xslt = !xsltPath.isEmpty()    ? xsltPath
+                        : !m_lastXsltPath.isEmpty() ? m_lastXsltPath
+                        : findStylesheet("Asso");
     if (xslt.isEmpty()) return;
 
     std::string htmlOutput;
@@ -485,7 +490,7 @@ void MainWindow::applyStylesheetMultiple(const QList<int>& indices, const QStrin
 {
     if (indices.isEmpty()) return;
 
-    const QString xslt = xsltPath.isEmpty() ? findStylesheet("Ministero") : xsltPath;
+    const QString xslt = xsltPath.isEmpty() ? findStylesheet("Asso") : xsltPath;
     if (xslt.isEmpty()) return;
 
     m_multipleHtmlFiles.clear();
@@ -720,13 +725,19 @@ void MainWindow::onPdfSignConfig()
 // ---------------------------------------------------------------------------
 void MainWindow::onAbout()
 {
-    QMessageBox::about(this,
-        "Informazioni su FatturaView",
+    QMessageBox dlg(this);
+    dlg.setWindowTitle("Informazioni su FatturaView");
+    dlg.setTextFormat(Qt::RichText);
+    dlg.setText(
         "<b>FatturaView</b> v1.0.0<br>"
         "Visualizzatore Fatture Elettroniche (FatturaPA)<br><br>"
         "Autore: Roberto Ferri<br>"
         "Copyright &copy; 2026<br><br>"
-        "Lettore di FatturaPA XML con fogli di stile XSLT");
+        "Sito web: <a href='https://www.fatturaview.it'>www.fatturaview.it</a><br><br>"
+        "Lettore di FatturaPA XML con fogli di stile XSLT"
+    );
+    dlg.setTextInteractionFlags(Qt::TextBrowserInteraction);
+    dlg.exec();
 }
 
 // ---------------------------------------------------------------------------

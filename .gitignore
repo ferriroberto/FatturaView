@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# File binari di distribuzione (troppo grandi per GitHub)
+dist/
+Installer/Output/

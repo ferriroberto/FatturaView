@@ -121,6 +121,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     g_extractPath = GetTempExtractionPath();
     g_appPath = GetApplicationPath();
 
+    // Pre-crea il file welcome direttamente in %TEMP% (non in g_extractPath che viene svuotata ad ogni apertura ZIP)
+    {
+        WCHAR tempDir[MAX_PATH];
+        GetTempPathW(MAX_PATH, tempDir);
+        g_welcomePath = std::wstring(tempDir) + L"FatturaView_welcome.html";
+    }
+    FatturaViewer::SaveHTMLToFile(FatturaViewer::GetWelcomePageHTML(), g_welcomePath);
+
     // Carica la preferenza del foglio di stile
     LoadStylesheetPreference();
 
@@ -247,10 +255,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
        // Testo nelle sezioni
        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Pronto");
-       std::wstring authorInfo = std::wstring(L"Autore: ") + APP_AUTHOR;
-       SendMessage(g_hStatusBar, SB_SETTEXT, 1, (LPARAM)authorInfo.c_str());
-       std::wstring versionInfo = std::wstring(L"Versione ") + APP_VERSION;
-       SendMessage(g_hStatusBar, SB_SETTEXT, 2, (LPARAM)versionInfo.c_str());
+        std::wstring authorInfo = std::wstring(L"Autore: ") + APP_AUTHOR;
+        SendMessage(g_hStatusBar, SB_SETTEXT, 1, (LPARAM)authorInfo.c_str());
+        std::wstring versionInfo = std::wstring(L"Versione ") + APP_VERSION + L"  -  www.fatturaview.it";
+        SendMessage(g_hStatusBar, SB_SETTEXT, 2, (LPARAM)versionInfo.c_str());
    }
 
    // Ottieni dimensioni area client
@@ -329,7 +337,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    else
    {
        // Usa un timer per navigare dopo che la finestra è completamente inizializzata
-       SetTimer(hWnd, 1, 500, NULL); // Timer ID 1, 500ms delay (aumentato)
+       SetTimer(hWnd, 1, 100, NULL); // Timer ID 1, 100ms delay
    }
 
    // Applica tema moderno Windows 11
@@ -555,43 +563,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if (wParam == 1) // Timer per il caricamento del welcome
             {
-                KillTimer(hWnd, 1); // Ferma il timer
+                KillTimer(hWnd, 1);
 
-                // Mostra loader: cursore wait e messaggio status bar
-                HCURSOR hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
-                if (g_hStatusBar)
-                    SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento interfaccia...");
-
-                // Mostra notifica popup
-                if (g_hBrowserWnd)
-                    FatturaViewer::ShowNotification(g_hBrowserWnd, L"Caricamento interfaccia...", L"info");
-
-                // Naviga al file welcome
                 if (g_hBrowserWnd)
                 {
                     if (!g_welcomePath.empty() && GetFileAttributesW(g_welcomePath.c_str()) != INVALID_FILE_ATTRIBUTES)
-                    {
-                        // Prova prima con il file
                         FatturaViewer::NavigateToHTML(g_hBrowserWnd, g_welcomePath);
-                    }
                     else
-                    {
-                        // Se il file non funziona, carica l'HTML direttamente in memoria
                         FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
-                    }
                 }
-
-                // Attendi un momento per il caricamento
-                Sleep(500);
-
-                // Ripristina cursore e status bar
-                SetCursor(hOldCursor);
-                if (g_hStatusBar)
-                    SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Pronto");
-
-                // Mostra notifica di benvenuto
-                if (g_hBrowserWnd)
-                    FatturaViewer::ShowNotification(g_hBrowserWnd, L"Interfaccia caricata - Pronto all'uso", L"success");
             }
         }
         break;
@@ -928,6 +908,19 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     {
     case WM_INITDIALOG:
         return (INT_PTR)TRUE;
+
+    case WM_NOTIFY:
+    {
+        NMHDR* pHdr = reinterpret_cast<NMHDR*>(lParam);
+        if (pHdr->idFrom == IDC_ABOUT_SYSLINK &&
+            (pHdr->code == NM_CLICK || pHdr->code == NM_RETURN))
+        {
+            ShellExecuteW(nullptr, L"open", L"https://www.fatturaview.it",
+                          nullptr, nullptr, SW_SHOWNORMAL);
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
 
     case WM_COMMAND:
         if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
@@ -1291,7 +1284,12 @@ void OnOpenFile(HWND hWnd)
     g_currentHtmlIndex = -1;
     UpdateNavButtons();
     if (g_hBrowserWnd)
-        FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
+    {
+        if (!g_welcomePath.empty() && GetFileAttributesW(g_welcomePath.c_str()) != INVALID_FILE_ATTRIBUTES)
+            FatturaViewer::NavigateToHTML(g_hBrowserWnd, g_welcomePath);
+        else
+            FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
+    }
     if (g_hListBox)
         SendMessage(g_hListBox, LB_RESETCONTENT, 0, 0);
 
@@ -1524,32 +1522,26 @@ void OnApplyStylesheet(HWND hWnd)
     // Usa il foglio di stile configurato
     std::wstring xsltPath = g_lastXsltPath;
 
-    // Se non c'è nessun foglio configurato, chiedi di selezionarne uno
+    // Se non c'è nessun foglio configurato, usa automaticamente Assosoftware
     if (xsltPath.empty() || GetFileAttributesW(xsltPath.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
-        SetCursor(hOldCursor);
-
-        MessageBoxW(hWnd, 
-            L"Nessun foglio di stile configurato!\n\nApri il menu Impostazioni per selezionare un foglio di stile.", 
-            L"Configurazione richiesta", MB_OK | MB_ICONINFORMATION);
-
-        // Apri automaticamente il dialog di selezione
-        if (DialogBox(hInst, MAKEINTRESOURCE(IDD_STYLESHEET_SELECTOR), hWnd, StylesheetSelector) != IDOK)
+        std::wstring resourcesPath = GetResourcesPath();
+        WIN32_FIND_DATAW findData;
+        HANDLE hFind = FindFirstFileW((resourcesPath + L"*Asso*.xsl").c_str(), &findData);
+        if (hFind != INVALID_HANDLE_VALUE)
         {
+            xsltPath = resourcesPath + findData.cFileName;
+            FindClose(hFind);
+            g_lastXsltPath = xsltPath;
+            SaveStylesheetPreference(xsltPath);
+        }
+        if (xsltPath.empty() || GetFileAttributesW(xsltPath.c_str()) == INVALID_FILE_ATTRIBUTES)
+        {
+            SetCursor(hOldCursor);
             if (g_hStatusBar)
-                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Operazione annullata");
+                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Foglio di stile non trovato");
             return;
         }
-
-        xsltPath = g_lastXsltPath;
-        if (xsltPath.empty())
-        {
-            if (g_hStatusBar)
-                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Nessun foglio selezionato");
-            return;
-        }
-
-        hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
     }
 
     if (g_hStatusBar)

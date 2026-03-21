@@ -78,7 +78,7 @@ END
 // Finestra di dialogo
 //
 
-IDD_ABOUTBOX DIALOGEX 0, 0, 230, 100
+IDD_ABOUTBOX DIALOGEX 0, 0, 230, 112
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Informazioni su FatturaView"
 FONT 8, "MS Shell Dlg"
@@ -88,9 +88,9 @@ BEGIN
     LTEXT           "Versione 1.0.0",IDC_STATIC,42,22,174,8
     LTEXT           "Autore: Roberto Ferri",IDC_STATIC,42,34,174,8
     LTEXT           "Copyright (c) 2026",IDC_STATIC,42,46,174,8
-    LTEXT           "",IDC_STATIC,42,58,174,8
-    LTEXT           "Lettore di FatturaPA XML con fogli di stile",IDC_STATIC,14,70,202,8
-    DEFPUSHBUTTON   "OK",IDOK,170,82,50,14,WS_GROUP
+    CONTROL         "<a href=""https://www.fatturaview.it"">www.fatturaview.it</a>",IDC_ABOUT_SYSLINK,"SysLink",WS_CHILD|WS_VISIBLE|WS_TABSTOP,42,58,174,10
+    LTEXT           "Lettore di FatturaPA XML con fogli di stile",IDC_STATIC,14,72,202,8
+    DEFPUSHBUTTON   "OK",IDOK,170,94,50,14,WS_GROUP
 END
 
 IDD_STYLESHEET_SELECTOR DIALOGEX 0, 0, 360, 220

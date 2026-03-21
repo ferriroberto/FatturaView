@@ -9,7 +9,7 @@
 #define AppFullName    "FatturaView - Visualizzatore Fatture Elettroniche"
 #define AppVersion     "1.0.0"
 #define AppPublisher   "Roberto Ferri"
-#define AppURL         ""
+#define AppURL         "https://www.fatturaview.it"
 #define AppExeName     "FatturaView.exe"
 #define AppGUID        "{{55618536-2590-4AD9-ADA8-DEE56FFBB9EE}"
 
@@ -52,6 +52,10 @@ LZMAUseSeparateProcess=yes
 ; Richiede privilegi amministrativi
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
+
+; Firma digitale dell'installer (richiede signtool.exe nel PATH o percorso completo)
+; Decommenta e configura dopo aver ottenuto un certificato code-signing
+; SignTool=standard sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /f "C:\Cert\MyCert.pfx" /p "PASSWORD" $f
 
 ; Wizard
 WizardStyle=modern
@@ -125,25 +129,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
-; ===========================================================================
-;  ASSOCIAZIONI FILE (XML e ZIP fatture)
-; ===========================================================================
-[Registry]
-; Associazione .xml (FatturaPA)
-Root: HKCR; Subkey: ".xml\OpenWithProgids"; ValueType: string; ValueName: "FatturaView.xml"; ValueData: ""; Flags: uninsdeletevalue; Tasks: fileassoc_xml
-Root: HKCR; Subkey: "FatturaView.xml"; ValueType: string; ValueName: ""; ValueData: "Fattura Elettronica XML"; Flags: uninsdeletekey; Tasks: fileassoc_xml
-Root: HKCR; Subkey: "FatturaView.xml\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExeName},0"; Tasks: fileassoc_xml
-Root: HKCR; Subkey: "FatturaView.xml\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""; Tasks: fileassoc_xml
-
-; Associazione .zip (archivi fatture)
-Root: HKCR; Subkey: ".zip\OpenWithProgids"; ValueType: string; ValueName: "FatturaView.zip"; ValueData: ""; Flags: uninsdeletevalue; Tasks: fileassoc_zip
-Root: HKCR; Subkey: "FatturaView.zip"; ValueType: string; ValueName: ""; ValueData: "Archivio Fatture ZIP"; Flags: uninsdeletekey; Tasks: fileassoc_zip
-Root: HKCR; Subkey: "FatturaView.zip\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExeName},0"; Tasks: fileassoc_zip
-Root: HKCR; Subkey: "FatturaView.zip\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""; Tasks: fileassoc_zip
-
-[Tasks]
-Name: "fileassoc_xml"; Description: "Apri file .xml (FatturaPA) con {#AppName}"; GroupDescription: "Associazioni file:"; Flags: unchecked
-Name: "fileassoc_zip"; Description: "Apri archivi .zip di fatture con {#AppName}"; GroupDescription: "Associazioni file:"; Flags: unchecked
+; (associazioni file rimosse)
 
 ; ===========================================================================
 ;  CODICE PASCAL - CONTROLLO VC++ REDISTRIBUTABLE
@@ -186,18 +172,5 @@ begin
       mbInformation,
       MB_OK
     );
-  end;
-end;
-
-// ---------------------------------------------------------------------------
-// Al termine: offre di avviare l'applicazione
-// ---------------------------------------------------------------------------
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
-  begin
-    // Notifica Windows dell'aggiornamento associazioni file
-    if WizardIsTaskSelected('fileassoc_xml') or WizardIsTaskSelected('fileassoc_zip') then
-      RegWriteStringValue(HKCR, '*\shell', '', '');
   end;
 end;
