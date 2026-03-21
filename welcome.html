@@ -1,102 +1,38 @@
 <!DOCTYPE html>
-<html lang="it">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizzatore Fatture Elettroniche</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #fff;
-        }
-        .container {
-            text-align: center;
-            padding: 40px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            max-width: 90%;
-            max-height: 90%;
-            overflow-y: auto;
-        }
-        h1 {
-            font-size: 2.5em;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        .icon {
-            font-size: 5em;
-            margin-bottom: 20px;
-        }
-        .instructions {
-            font-size: 1.2em;
-            line-height: 1.8;
-            margin-top: 30px;
-        }
-        .step {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            text-align: left;
-        }
-        .step-number {
-            display: inline-block;
-            width: 30px;
-            height: 30px;
-            background: #fff;
-            color: #667eea;
-            border-radius: 50%;
-            text-align: center;
-            line-height: 30px;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>FatturaView</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:Segoe UI,Arial;background:#2563eb;display:flex;align-items:center;justify-content:center;color:#fff}
+.c{text-align:center;padding:30px;background:rgba(255,255,255,0.15);border-radius:15px;max-width:600px}
+.i{width:80px;height:80px;margin:0 auto 15px}
+h1{font-size:2em;margin-bottom:10px}
+.s{font-size:1em;opacity:.9;margin-bottom:25px}
+.st{background:rgba(255,255,255,0.2);padding:10px;margin:6px 0;border-radius:8px;text-align:left;display:flex;align-items:center}
+.n{width:24px;height:24px;background:#fff;color:#2563eb;border-radius:50%;text-align:center;line-height:24px;font-weight:bold;margin-right:10px;flex-shrink:0}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="icon">📄</div>
-        <h1>Visualizzatore Fatture Elettroniche</h1>
-        <p style="font-size: 1.1em; opacity: 0.9;">Benvenuto nel lettore di fatture XML italiane</p>
-
-        <div class="instructions">
-            <div class="step">
-                <span class="step-number">1</span>
-                <strong>Apri un archivio ZIP</strong><br>
-                Menu → File → Apri archivio ZIP...
-            </div>
-            <div class="step">
-                <span class="step-number">2</span>
-                <strong>Seleziona una fattura</strong><br>
-                Doppio click sulla fattura nella lista a sinistra
-            </div>
-            <div class="step">
-                <span class="step-number">3</span>
-                <strong>Scegli il foglio di stile</strong><br>
-                Seleziona il file XSLT (Ministero o Assosoftware)
-            </div>
-            <div class="step">
-                <span class="step-number">4</span>
-                <strong>Visualizza la fattura</strong><br>
-                La fattura apparirà qui in formato HTML
-            </div>
-        </div>
-    </div>
+<div class="c">
+<svg class="i" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="100" height="100" fill="#2563eb"/>
+<rect x="25" y="12" width="55" height="70" rx="2" fill="#fff"/>
+<polygon points="69,12 80,23 69,23" fill="#dce4f0"/>
+<line x1="33" y1="33" x2="68" y2="33" stroke="#2563eb" stroke-width="1.5"/>
+<line x1="33" y1="45" x2="60" y2="45" stroke="#2563eb" stroke-width="1.5"/>
+<line x1="33" y1="57" x2="68" y2="57" stroke="#2563eb" stroke-width="1.5"/>
+<circle cx="68" cy="73" r="10" fill="#10b981"/>
+<polyline points="63,73 66,76 73,68" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+<h1>FatturaView</h1>
+<p class="s">Visualizzatore Fatture Elettroniche PA</p>
+<div class="st"><span class="n">1</span><div><b>Apri ZIP</b><br>File - Apri archivio ZIP</div></div>
+<div class="st"><span class="n">2</span><div><b>Seleziona fattura</b><br>Doppio click nella lista</div></div>
+<div class="st"><span class="n">3</span><div><b>Applica stile</b><br>Visualizza - Ministero/Assosoftware</div></div>
+<div class="st"><span class="n">4</span><div><b>Stampa PDF</b><br>File - Stampa fatture</div></div>
+</div>
 </body>
 </html>

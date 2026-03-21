@@ -49,13 +49,10 @@ BEGIN
     BEGIN
         MENUITEM "Applica foglio stile &Ministero",     IDM_APPLY_MINISTERO
         MENUITEM "Applica foglio stile &Assosoftware",  IDM_APPLY_ASSOSOFTWARE
-        MENUITEM SEPARATOR
-        MENUITEM "&Cambia foglio di stile...",          IDM_CHANGE_STYLESHEET
     END
     POPUP "   &Impostazioni"
     BEGIN
         MENUITEM "&Seleziona foglio di stile...", IDM_SETTINGS_SELECT_STYLESHEET
-        MENUITEM "&Configurazione firma PDF...", IDM_PDF_SIGN_CONFIG
     END
     POPUP "   &?"
     BEGIN
@@ -189,7 +186,7 @@ END
 STRINGTABLE
 BEGIN
    IDC_XMLREAD   "XMLREAD"
-   IDS_APP_TITLE       "FatturaView"
+   IDS_APP_TITLE       "FatturaView - Visualizzatore Fatture Elettroniche"
 END
 
 #endif

@@ -23,4 +23,5 @@ public:
     static void PrintDocument(HWND hBrowser);
     static void PrintDocumentSilent(HWND hBrowser);
     static void SetZoom(HWND hBrowser, int zoomPercent);
+    static void ShowNotification(HWND hBrowser, const std::wstring& message, const std::wstring& type = L"info");
 };

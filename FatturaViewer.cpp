@@ -459,24 +459,14 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     html += L"</style></head><body><div class=\"container\">";
     html += L"<div class=\"icon\">";
     html += L"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"128\" height=\"128\">";
-    html += L"<defs>";
-    html += L"<linearGradient id=\"fvbg\" x1=\"0\" y1=\"1\" x2=\"1\" y2=\"0\">";
-    html += L"<stop offset=\"0%\" stop-color=\"#002d6e\"/><stop offset=\"100%\" stop-color=\"#0078d4\"/>"
-        L"</linearGradient>";
-    html += L"</defs>";
-    html += L"<rect x=\"1\" y=\"1\" width=\"98\" height=\"98\" rx=\"20\" fill=\"url(#fvbg)\"/>";
-    html += L"<ellipse cx=\"36\" cy=\"24\" rx=\"32\" ry=\"18\" fill=\"rgba(255,255,255,0.11)\"/>";
-    html += L"<rect x=\"22\" y=\"17\" width=\"46\" height=\"57\" rx=\"5\" fill=\"rgba(255,255,255,0.93)\"/>";
-    html += L"<polygon points=\"57,17 68,17 68,28 57,28\" fill=\"#b8d4ee\"/>";
-    html += L"<line x1=\"57\" y1=\"17\" x2=\"57\" y2=\"28\" stroke=\"#90b6d6\" stroke-width=\"0.9\"/>";
-    html += L"<rect x=\"30\" y=\"37\" width=\"24\" height=\"3.5\" rx=\"1.8\" fill=\"#0078d4\"/>";
-    html += L"<rect x=\"30\" y=\"44\" width=\"18\" height=\"3\" rx=\"1.5\" fill=\"#85b8d8\"/>";
-    html += L"<rect x=\"30\" y=\"51\" width=\"20\" height=\"3\" rx=\"1.5\" fill=\"#85b8d8\"/>";
-    html += L"<circle cx=\"62\" cy=\"63\" r=\"13\" fill=\"rgba(0,0,0,0.15)\" transform=\"translate(1,2)\"/>";
-    html += L"<circle cx=\"62\" cy=\"63\" r=\"13\" fill=\"#0078d4\"/>";
-    html += L"<circle cx=\"62\" cy=\"63\" r=\"11\" fill=\"#005fa3\"/>";
-    html += L"<text x=\"62\" y=\"67.5\" font-family=\"Arial,sans-serif\" font-size=\"15\" "
-        L"font-weight=\"bold\" fill=\"white\" text-anchor=\"middle\">\u20AC</text>";
+    html += L"<rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"#2563eb\"/>";
+    html += L"<rect x=\"25\" y=\"12\" width=\"55\" height=\"70\" rx=\"2\" fill=\"white\"/>";
+    html += L"<polygon points=\"69,12 80,23 69,23\" fill=\"#dce4f0\"/>";
+    html += L"<line x1=\"33\" y1=\"33\" x2=\"68\" y2=\"33\" stroke=\"#2563eb\" stroke-width=\"1.5\"/>";
+    html += L"<line x1=\"33\" y1=\"45\" x2=\"60\" y2=\"45\" stroke=\"#2563eb\" stroke-width=\"1.5\"/>";
+    html += L"<line x1=\"33\" y1=\"57\" x2=\"68\" y2=\"57\" stroke=\"#2563eb\" stroke-width=\"1.5\"/>";
+    html += L"<circle cx=\"68\" cy=\"73\" r=\"10\" fill=\"#10b981\"/>";
+    html += L"<polyline points=\"63,73 66,76 73,68\" stroke=\"white\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>";
     html += L"</svg>";
     html += L"</div>";
     html += L"<h1>FatturaView</h1>";
@@ -663,4 +653,91 @@ void FatturaViewer::SetZoom(HWND hBrowser, int zoomPercent)
     vZoom.lVal = zoomPercent;
     pData->pWebBrowser->ExecWB((OLECMDID)OLECMDID_OPTICAL_ZOOM, OLECMDEXECOPT_DONTPROMPTUSER, &vZoom, NULL);
     VariantClear(&vZoom);
+}
+
+void FatturaViewer::ShowNotification(HWND hBrowser, const std::wstring& message, const std::wstring& type)
+{
+    if (!hBrowser)
+        return;
+
+    BrowserData* pData = (BrowserData*)GetWindowLongPtr(hBrowser, GWLP_USERDATA);
+    if (!pData || !pData->pWebBrowser)
+        return;
+
+    // Ottieni il document
+    IDispatch* pDisp = NULL;
+    HRESULT hr = pData->pWebBrowser->get_Document(&pDisp);
+    if (SUCCEEDED(hr) && pDisp)
+    {
+        IHTMLDocument2* pDoc = NULL;
+        hr = pDisp->QueryInterface(IID_IHTMLDocument2, (void**)&pDoc);
+        if (SUCCEEDED(hr) && pDoc)
+        {
+            // Determina il colore e l'icona in base al tipo
+            std::wstring bgColor = L"#0078d4";
+            std::wstring icon = L"&#8505;"; // i cerchiata
+
+            if (type == L"success") {
+                bgColor = L"#10b981";
+                icon = L"&#10004;"; // checkmark
+            } else if (type == L"error") {
+                bgColor = L"#ef4444";
+                icon = L"&#10060;"; // X
+            } else if (type == L"warning") {
+                bgColor = L"#f59e0b";
+                icon = L"&#9888;"; // warning
+            }
+
+            // Crea lo script JavaScript per mostrare la notifica
+            std::wstring script = L"(function() {";
+            script += L"if (!document.getElementById('fv-notification-container')) {";
+            script += L"var container = document.createElement('div');";
+            script += L"container.id = 'fv-notification-container';";
+            script += L"container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;';";
+            script += L"document.body.appendChild(container);";
+            script += L"}";
+            script += L"var notif = document.createElement('div');";
+            script += L"notif.innerHTML = '<span style=\"font-size:1.2em;margin-right:10px;\">" + icon + L"</span>" + message + L"';";
+            script += L"notif.style.cssText = 'background:" + bgColor + L";color:white;padding:16px 24px;";
+            script += L"border-radius:8px;margin-bottom:10px;box-shadow:0 4px 12px rgba(0,0,0,0.3);";
+            script += L"font-family:Segoe UI,Arial;font-size:14px;min-width:280px;max-width:400px;";
+            script += L"animation:slideIn 0.3s ease-out;display:flex;align-items:center;';";
+            script += L"document.getElementById('fv-notification-container').appendChild(notif);";
+            script += L"if (!document.getElementById('fv-notification-style')) {";
+            script += L"var style = document.createElement('style');";
+            script += L"style.id = 'fv-notification-style';";
+            script += L"style.textContent = '@keyframes slideIn { from { transform:translateX(400px); opacity:0; } to { transform:translateX(0); opacity:1; } }";
+            script += L"@keyframes slideOut { from { transform:translateX(0); opacity:1; } to { transform:translateX(400px); opacity:0; } }';";
+            script += L"document.head.appendChild(style);";
+            script += L"}";
+            script += L"setTimeout(function() {";
+            script += L"notif.style.animation = 'slideOut 0.3s ease-in';";
+            script += L"setTimeout(function() { notif.remove(); }, 300);";
+            script += L"}, 3000);";
+            script += L"})();";
+
+            // Esegui lo script
+            IHTMLWindow2* pWindow = NULL;
+            hr = pDoc->get_parentWindow(&pWindow);
+            if (SUCCEEDED(hr) && pWindow)
+            {
+                VARIANT vResult;
+                VariantInit(&vResult);
+
+                BSTR bstrScript = SysAllocString(script.c_str());
+                BSTR bstrLanguage = SysAllocString(L"JavaScript");
+
+                pWindow->execScript(bstrScript, bstrLanguage, &vResult);
+
+                SysFreeString(bstrScript);
+                SysFreeString(bstrLanguage);
+                VariantClear(&vResult);
+
+                pWindow->Release();
+            }
+
+            pDoc->Release();
+        }
+        pDisp->Release();
+    }
 }

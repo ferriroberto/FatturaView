@@ -334,7 +334,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Applica tema moderno Windows 11
    ApplyModernWindowTheme(hWnd);
 
-   ShowWindow(hWnd, nCmdShow);
+   ShowWindow(hWnd, SW_SHOWMAXIMIZED);
    UpdateWindow(hWnd);
 
    return TRUE;
@@ -561,6 +561,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (g_hStatusBar)
                     SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento interfaccia...");
 
+                // Mostra notifica popup
+                if (g_hBrowserWnd)
+                    FatturaViewer::ShowNotification(g_hBrowserWnd, L"Caricamento interfaccia...", L"info");
+
                 // Naviga al file welcome
                 if (g_hBrowserWnd)
                 {
@@ -583,6 +587,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 SetCursor(hOldCursor);
                 if (g_hStatusBar)
                     SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Pronto");
+
+                // Mostra notifica di benvenuto
+                if (g_hBrowserWnd)
+                    FatturaViewer::ShowNotification(g_hBrowserWnd, L"Interfaccia caricata - Pronto all'uso", L"success");
             }
         }
         break;
@@ -629,24 +637,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case IDM_APPLY_ASSOSOFTWARE:
                 OnApplySpecificStylesheet(hWnd, L"Asso");
                 break;
-            case IDM_CHANGE_STYLESHEET:
-            {
-                std::vector<int> selectedIndices = GetSelectedFattureIndices();
-                if (selectedIndices.size() > 1)
-                {
-                    if (g_lastXsltPath.empty() || GetFileAttributesW(g_lastXsltPath.c_str()) == INVALID_FILE_ATTRIBUTES)
-                    {
-                        if (DialogBox(hInst, MAKEINTRESOURCE(IDD_STYLESHEET_SELECTOR), hWnd, StylesheetSelector) != IDOK || g_lastXsltPath.empty())
-                            break;
-                    }
-                    OnApplyStylesheetMultiple(hWnd, g_lastXsltPath, selectedIndices);
-                }
-                else
-                {
-                    OnApplyStylesheet(hWnd);
-                }
-                break;
-            }
             case IDM_PRINT_SELECTED:
                 OnPrintToPDF(hWnd);
                 break;
@@ -667,9 +657,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
                 break;
             }
-            case IDM_PDF_SIGN_CONFIG:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_PDF_SIGN_CONFIG), hWnd, PdfSignConfigDialog);
-                break;
             case IDC_LISTBOX_FATTURE:
                 if (HIWORD(wParam) == LBN_SELCHANGE)
                 {
@@ -1232,6 +1219,8 @@ void OnOpenFile(HWND hWnd)
                 SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Estrazione ZIP in corso...");
                 UpdateWindow(g_hStatusBar);
             }
+            if (g_hBrowserWnd)
+                FatturaViewer::ShowNotification(g_hBrowserWnd, L"Estrazione archivio ZIP...", L"info");
             if (g_pParser->ExtractZipFile(path, g_extractPath))
                 successCount++;
             else
@@ -1244,6 +1233,8 @@ void OnOpenFile(HWND hWnd)
                 SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento XML...");
                 UpdateWindow(g_hStatusBar);
             }
+            if (g_hBrowserWnd)
+                FatturaViewer::ShowNotification(g_hBrowserWnd, L"Caricamento file XML...", L"info");
             size_t lastSlash = path.find_last_of(L"\\/");
             std::wstring fileName = (lastSlash != std::wstring::npos) ? path.substr(lastSlash + 1) : path;
             if (CopyFileW(path.c_str(), (g_extractPath + fileName).c_str(), FALSE))
@@ -1262,6 +1253,8 @@ void OnOpenFile(HWND hWnd)
     {
         if (g_hStatusBar)
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Errore caricamento file");
+        if (g_hBrowserWnd)
+            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Errore nel caricamento dei file", L"error");
         MessageBoxW(hWnd, L"Errore nel caricamento dei file selezionati!", L"Errore", MB_OK | MB_ICONERROR);
         return;
     }
@@ -1271,6 +1264,8 @@ void OnOpenFile(HWND hWnd)
         SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento fatture...");
         UpdateWindow(g_hStatusBar);
     }
+    if (g_hBrowserWnd)
+        FatturaViewer::ShowNotification(g_hBrowserWnd, L"Lettura fatture in corso...", L"info");
 
     LoadFattureList(hWnd);
 
@@ -1278,6 +1273,8 @@ void OnOpenFile(HWND hWnd)
     {
         if (g_hStatusBar)
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Nessuna fattura elettronica trovata");
+        if (g_hBrowserWnd)
+            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Nessuna fattura trovata", L"warning");
         MessageBoxW(hWnd,
             L"Nessuna fattura elettronica valida trovata nei file selezionati.\n\n"
             L"Verificare che:\n"
@@ -1294,6 +1291,14 @@ void OnOpenFile(HWND hWnd)
         if (errorCount > 0)
             statusText += L" (" + std::to_wstring(errorCount) + L" errori)";
         SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)statusText.c_str());
+    }
+
+    // Mostra notifica di successo
+    if (g_hBrowserWnd)
+    {
+        std::wstring notifMsg = std::to_wstring(g_fattureInfo.size()) +
+            (g_fattureInfo.size() == 1 ? L" fattura caricata con successo" : L" fatture caricate con successo");
+        FatturaViewer::ShowNotification(g_hBrowserWnd, notifMsg, L"success");
     }
 }
 
@@ -1450,6 +1455,8 @@ void OnApplyStylesheet(HWND hWnd)
         SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Applicazione foglio di stile...");
         UpdateWindow(g_hStatusBar);
     }
+    if (g_hBrowserWnd)
+        FatturaViewer::ShowNotification(g_hBrowserWnd, L"Applicazione foglio di stile...", L"info");
 
     // Applica la trasformazione
     std::wstring htmlOutput;
@@ -1460,6 +1467,8 @@ void OnApplyStylesheet(HWND hWnd)
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Rendering HTML...");
             UpdateWindow(g_hStatusBar);
         }
+        if (g_hBrowserWnd)
+            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Generazione visualizzazione...", L"info");
 
         // Salva l'HTML in un file temporaneo
         std::wstring htmlPath = g_extractPath + L"fattura_visualizzata.html";
@@ -1475,6 +1484,8 @@ void OnApplyStylesheet(HWND hWnd)
         SetCursor(hOldCursor);
         if (g_hStatusBar)
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Fattura visualizzata");
+        if (g_hBrowserWnd)
+            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Fattura visualizzata correttamente", L"success");
     }
     else
     {
@@ -1482,6 +1493,8 @@ void OnApplyStylesheet(HWND hWnd)
         SetCursor(hOldCursor);
         if (g_hStatusBar)
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Errore trasformazione");
+        if (g_hBrowserWnd)
+            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Errore trasformazione XSLT", L"error");
         MessageBoxW(hWnd, L"Errore durante l'applicazione del foglio di stile!", L"Errore", MB_OK | MB_ICONERROR);
     }
 }
@@ -1839,12 +1852,16 @@ void OnPrintToPDF(HWND hWnd)
                 {
                     if (g_hStatusBar)
                         SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"PDF firmato digitalmente");
+                    if (g_hBrowserWnd)
+                        FatturaViewer::ShowNotification(g_hBrowserWnd, L"PDF firmato digitalmente", L"success");
                 }
             }
 
             ShellExecuteW(hWnd, L"open", pdfPath.c_str(), NULL, NULL, SW_SHOW);
             if (g_hStatusBar)
                 SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"PDF generato e aperto");
+            if (g_hBrowserWnd)
+                FatturaViewer::ShowNotification(g_hBrowserWnd, L"PDF generato e aperto con successo", L"success");
         }
         else
         {
