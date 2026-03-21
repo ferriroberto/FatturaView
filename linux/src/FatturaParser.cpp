@@ -33,7 +33,6 @@ FatturaParser::FatturaParser()
 {
     xmlInitParser();
     xmlSubstituteEntitiesDefault(1);
-    exsltRegisterAll();
 }
 
 FatturaParser::~FatturaParser()

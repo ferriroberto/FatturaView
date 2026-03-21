@@ -26,14 +26,17 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build \
-            qt6-base-dev qt6-webengine-dev \
+            cmake ninja-build pkg-config \
+            qt6-base-dev qt6-base-private-dev \
+            qt6-webengine-dev qt6-webengine-private-dev \
+            libqt6webenginewidgets6 \
             libxml2-dev libxslt1-dev libzip-dev \
             libgl1-mesa-dev libgles2-mesa-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev \
+            libxkbcommon-dev libxkbcommon-x11-0 \
             libxcb-icccm4-dev libxcb-image0-dev \
             libxcb-keysyms1-dev libxcb-render-util0-dev \
-            libxcb-xinerama0-dev libxcb-xfixes0-dev
+            libxcb-xinerama0-dev libxcb-xfixes0-dev \
+            libxcb-cursor0 libxcb-cursor-dev
 
       # -----------------------------------------------------------------------
       # 3. Configurazione CMake

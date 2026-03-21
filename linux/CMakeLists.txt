@@ -9,15 +9,15 @@ set(CMAKE_AUTORCC ON)
 # ---------------------------------------------------------------------------
 # Dipendenze Qt6
 # ---------------------------------------------------------------------------
-find_package(Qt6 REQUIRED COMPONENTS Widgets WebEngineWidgets PrintSupport)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets WebEngineWidgets PrintSupport)
 
 # ---------------------------------------------------------------------------
-# Dipendenze sistema (libxml2, libxslt, libzip)
+# Dipendenze sistema — usiamo pkg-config per avere variabili uniformi *_INCLUDE_DIRS
 # ---------------------------------------------------------------------------
-find_package(LibXml2 REQUIRED)
-find_package(LibXslt  REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBZIP REQUIRED libzip)
+pkg_check_modules(LIBXML2  REQUIRED libxml-2.0)
+pkg_check_modules(LIBXSLT  REQUIRED libxslt)
+pkg_check_modules(LIBZIP   REQUIRED libzip)
 
 # ---------------------------------------------------------------------------
 # Sorgenti
@@ -45,12 +45,18 @@ target_include_directories(fatturaview PRIVATE
 )
 
 target_link_libraries(fatturaview PRIVATE
+    Qt6::Core
     Qt6::Widgets
     Qt6::WebEngineWidgets
     Qt6::PrintSupport
     ${LIBXML2_LIBRARIES}
     ${LIBXSLT_LIBRARIES}
     ${LIBZIP_LIBRARIES}
+)
+
+target_compile_options(fatturaview PRIVATE
+    ${LIBXML2_CFLAGS_OTHER}
+    ${LIBXSLT_CFLAGS_OTHER}
 )
 
 # ---------------------------------------------------------------------------

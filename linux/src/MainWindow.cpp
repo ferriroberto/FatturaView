@@ -615,7 +615,7 @@ void MainWindow::onPrintToPdf()
 
     if (destFile.isEmpty()) return;
 
-    m_webView->printToPdf(destFile);
+    m_webView->page()->printToPdf(destFile);
     statusBar()->showMessage("PDF salvato: " + destFile);
 }
 
