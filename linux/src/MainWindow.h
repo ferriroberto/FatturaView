@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QSplitter>
+#include <QVBoxLayout>
 #include <QSettings>
 
 #include "FatturaParser.h"

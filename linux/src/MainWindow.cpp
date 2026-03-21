@@ -69,10 +69,12 @@ MainWindow::~MainWindow()
 void MainWindow::setupMenuBar()
 {
     QMenu* fileMenu = menuBar()->addMenu("&File");
-    fileMenu->addAction(QIcon::fromTheme("document-open"), "Apri ZIP / XML...",
-                        this, &MainWindow::onOpenFile, QKeySequence::Open);
+    auto* actOpen = fileMenu->addAction(QIcon::fromTheme("document-open"), "Apri ZIP / XML...",
+                                        this, &MainWindow::onOpenFile);
+    actOpen->setShortcut(QKeySequence::Open);
     fileMenu->addSeparator();
-    fileMenu->addAction("E&sci", this, &QMainWindow::close, QKeySequence::Quit);
+    auto* actExit = fileMenu->addAction("E&sci", this, &QMainWindow::close);
+    actExit->setShortcut(QKeySequence::Quit);
 
     QMenu* viewMenu = menuBar()->addMenu("&Visualizza");
     viewMenu->addAction("Foglio &Ministero",    this, &MainWindow::onApplyStylesheetMinistero);
@@ -80,8 +82,10 @@ void MainWindow::setupMenuBar()
     viewMenu->addSeparator();
     viewMenu->addAction("&Seleziona foglio di stile...", this, &MainWindow::onSelectStylesheet);
     viewMenu->addSeparator();
-    viewMenu->addAction("Zoom +", this, &MainWindow::onZoomIn,  QKeySequence(Qt::CTRL | Qt::Key_Plus));
-    viewMenu->addAction("Zoom -", this, &MainWindow::onZoomOut, QKeySequence(Qt::CTRL | Qt::Key_Minus));
+    auto* actZoomIn  = viewMenu->addAction("Zoom +", this, &MainWindow::onZoomIn);
+    auto* actZoomOut = viewMenu->addAction("Zoom -", this, &MainWindow::onZoomOut);
+    actZoomIn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus));
+    actZoomOut->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus));
 
     QMenu* toolsMenu = menuBar()->addMenu("&Strumenti");
     toolsMenu->addAction("Stampa / Salva PDF...", this, &MainWindow::onPrintToPdf);
