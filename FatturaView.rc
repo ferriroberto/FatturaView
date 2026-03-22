@@ -57,6 +57,7 @@ BEGIN
     POPUP "   &?"
     BEGIN
         MENUITEM "&Informazioni su...",         IDM_ABOUT
+        MENUITEM "&Licenza",                    IDM_SHOW_LICENSE
     END
 END
 
@@ -85,7 +86,7 @@ FONT 8, "MS Shell Dlg"
 BEGIN
     ICON            IDI_XMLREAD,IDC_STATIC,14,14,21,20
     LTEXT           "FatturaView - Visualizzatore Fatture Elettroniche",IDC_STATIC,42,10,174,8,SS_NOPREFIX
-    LTEXT           "Versione 1.0.0",IDC_STATIC,42,22,174,8
+    LTEXT           "Versione 1.1.0",IDC_STATIC,42,22,174,8
     LTEXT           "Autore: Roberto Ferri",IDC_STATIC,42,34,174,8
     LTEXT           "Copyright (c) 2026",IDC_STATIC,42,46,174,8
     CONTROL         "<a href=""https://www.fatturaview.it"">www.fatturaview.it</a>",IDC_ABOUT_SYSLINK,"SysLink",WS_CHILD|WS_VISIBLE|WS_TABSTOP,42,58,174,10
@@ -129,6 +130,15 @@ BEGIN
 
     DEFPUSHBUTTON   "Salva",IDOK,240,256,70,18
     PUSHBUTTON      "Annulla",IDCANCEL,316,256,70,18
+END
+
+IDD_LICENSE_DIALOG DIALOGEX 0, 0, 500, 400
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Licenza MIT"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    EDITTEXT        IDC_LICENSE_TEXT,7,7,486,355,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "OK",IDOK,400,370,80,20,WS_GROUP
 END
 
 /////////////////////////////////////////////////////////////////////////////

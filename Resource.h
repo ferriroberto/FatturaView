@@ -26,6 +26,8 @@
 #define IDM_ZOOM_OUT				123
 #define IDM_PDF_SIGN_CONFIG			124
 #define IDD_PDF_SIGN_CONFIG			125
+#define IDM_SHOW_LICENSE          130
+#define IDD_LICENSE_DIALOG        140
 
 // Menu contestuale ListBox
 #define IDM_CONTEXT_PRINT_SELECTED  126
@@ -36,6 +38,7 @@
 #define IDC_ZOOM_LABEL				1007
 #define IDC_TOOLBAR				1003
 #define IDC_STATUSBAR			1004
+#define IDC_LICENSE_TEXT         2001
 
 // Risorse XSLT embedded
 #define IDR_XSLT_MINISTERO		200

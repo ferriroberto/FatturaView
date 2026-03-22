@@ -4,16 +4,56 @@
 #include <shldisp.h>
 #include <atlbase.h>
 #include <fstream>
+#include <wincrypt.h>
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
+#pragma comment(lib, "crypt32.lib")
 
 FatturaElettronicaParser::FatturaElettronicaParser()
     : m_pXmlDoc(nullptr), m_pXslDoc(nullptr)
 {
     InitializeCOM();
+}
+
+bool FatturaElettronicaParser::HasAttachments(const std::wstring& xmlPath)
+{
+    IXMLDOMDocument2* pDoc = NULL;
+    HRESULT hr = CoCreateInstance(__uuidof(DOMDocument60), NULL, CLSCTX_INPROC_SERVER,
+        __uuidof(IXMLDOMDocument2), (void**)&pDoc);
+    if (FAILED(hr) || !pDoc)
+        return false;
+
+    pDoc->put_async(VARIANT_FALSE);
+    pDoc->setProperty(_bstr_t(L"SelectionLanguage"), _variant_t(L"XPath"));
+    pDoc->setProperty(_bstr_t(L"SelectionNamespaces"), _variant_t(L""));
+
+    VARIANT_BOOL status;
+    hr = pDoc->load(_variant_t(xmlPath.c_str()), &status);
+    if (FAILED(hr) || status != VARIANT_TRUE)
+    {
+        pDoc->Release();
+        return false;
+    }
+
+    IXMLDOMNodeList* pList = NULL;
+    BSTR bstrQ = SysAllocString(L"//*[local-name()='Allegati']");
+    hr = pDoc->selectNodes(bstrQ, &pList);
+    SysFreeString(bstrQ);
+
+    bool has = false;
+    if (SUCCEEDED(hr) && pList)
+    {
+        long count = 0;
+        pList->get_length(&count);
+        has = (count > 0);
+        pList->Release();
+    }
+
+    pDoc->Release();
+    return has;
 }
 
 FatturaElettronicaParser::~FatturaElettronicaParser()
@@ -455,9 +495,142 @@ std::vector<FatturaInfo> FatturaElettronicaParser::GetFattureInfoFromFolder(cons
         FatturaInfo info;
         if (ExtractFatturaInfo(xmlFile, info))
         {
+            // Verifica se la fattura contiene allegati e imposta il flag
+            info.hasAllegati = HasAttachments(xmlFile);
             fattureInfo.push_back(info);
         }
     }
 
     return fattureInfo;
+}
+
+// Estrae gli allegati embedded (base64) da un file XML di fattura e li salva su disco
+std::vector<AllegatoInfo> FatturaElettronicaParser::ExtractAttachments(
+    const std::wstring& xmlPath, const std::wstring& outputFolder)
+{
+    std::vector<AllegatoInfo> result;
+
+    IXMLDOMDocument2* pDoc = NULL;
+    HRESULT hr = CoCreateInstance(__uuidof(DOMDocument60), NULL, CLSCTX_INPROC_SERVER,
+        __uuidof(IXMLDOMDocument2), (void**)&pDoc);
+    if (FAILED(hr) || !pDoc)
+        return result;
+
+    pDoc->put_async(VARIANT_FALSE);
+    pDoc->setProperty(_bstr_t(L"SelectionLanguage"), _variant_t(L"XPath"));
+    pDoc->setProperty(_bstr_t(L"SelectionNamespaces"), _variant_t(L""));
+
+    VARIANT_BOOL status;
+    hr = pDoc->load(_variant_t(xmlPath.c_str()), &status);
+    if (FAILED(hr) || status != VARIANT_TRUE)
+    {
+        pDoc->Release();
+        return result;
+    }
+
+    IXMLDOMNodeList* pList = NULL;
+    BSTR bstrQ = SysAllocString(L"//*[local-name()='Allegati']");
+    hr = pDoc->selectNodes(bstrQ, &pList);
+    SysFreeString(bstrQ);
+
+    if (FAILED(hr) || !pList)
+    {
+        pDoc->Release();
+        return result;
+    }
+
+    long count = 0;
+    pList->get_length(&count);
+    if (count == 0)
+    {
+        pList->Release();
+        pDoc->Release();
+        return result;
+    }
+
+    // Crea la cartella di destinazione
+    std::wstring folder = outputFolder;
+    if (!folder.empty() && folder.back() != L'\\')
+        folder += L'\\';
+    CreateDirectoryW(folder.c_str(), NULL);
+
+    auto getChildText = [](IXMLDOMNode* pParent, const wchar_t* localName) -> std::wstring
+    {
+        std::wstring xp = std::wstring(L"*[local-name()='") + localName + L"']";
+        BSTR bstr = SysAllocString(xp.c_str());
+        IXMLDOMNode* pChild = NULL;
+        std::wstring text;
+        if (SUCCEEDED(pParent->selectSingleNode(bstr, &pChild)) && pChild)
+        {
+            BSTR bstrVal = NULL;
+            if (SUCCEEDED(pChild->get_text(&bstrVal)) && bstrVal)
+            {
+                text = bstrVal;
+                SysFreeString(bstrVal);
+            }
+            pChild->Release();
+        }
+        SysFreeString(bstr);
+        return text;
+    };
+
+    for (long i = 0; i < count; i++)
+    {
+        IXMLDOMNode* pNode = NULL;
+        if (FAILED(pList->get_item(i, &pNode)) || !pNode)
+            continue;
+
+        std::wstring nome    = getChildText(pNode, L"NomeAttachment");
+        std::wstring desc    = getChildText(pNode, L"DescrizioneAttachment");
+        std::wstring formato = getChildText(pNode, L"FormatoAttachment");
+        std::wstring b64     = getChildText(pNode, L"Attachment");
+        pNode->Release();
+
+        if (nome.empty() || b64.empty())
+            continue;
+
+        // Rimuovi whitespace dal base64
+        std::wstring cleanB64;
+        cleanB64.reserve(b64.size());
+        for (wchar_t c : b64)
+            if (c != L' ' && c != L'\t' && c != L'\r' && c != L'\n')
+                cleanB64 += c;
+
+        // Decodifica base64 con CryptStringToBinaryW
+        DWORD cbBinary = 0;
+        if (!CryptStringToBinaryW(cleanB64.c_str(), (DWORD)cleanB64.size(),
+            CRYPT_STRING_BASE64, NULL, &cbBinary, NULL, NULL) || cbBinary == 0)
+            continue;
+
+        std::vector<BYTE> bin(cbBinary);
+        if (!CryptStringToBinaryW(cleanB64.c_str(), (DWORD)cleanB64.size(),
+            CRYPT_STRING_BASE64, bin.data(), &cbBinary, NULL, NULL))
+            continue;
+
+        // Sanifica il nome del file (rimuovi caratteri illegali)
+        std::wstring safeName = nome;
+        for (wchar_t& c : safeName)
+            if (c == L'/' || c == L'\\' || c == L':' || c == L'*' ||
+                c == L'?' || c == L'"' || c == L'<' || c == L'>' || c == L'|')
+                c = L'_';
+
+        std::wstring filePath = folder + safeName;
+        std::ofstream ofs(filePath, std::ios::binary);
+        if (!ofs.is_open())
+            continue;
+
+        ofs.write(reinterpret_cast<const char*>(bin.data()), cbBinary);
+        ofs.close();
+
+        AllegatoInfo info;
+        info.nomeAttachment = nome;
+        info.descrizione    = desc;
+        info.formato        = formato;
+        info.filePath       = filePath;
+        result.push_back(info);
+    }
+
+    pList->Release();
+    pDoc->Release();
+    return result;
 }

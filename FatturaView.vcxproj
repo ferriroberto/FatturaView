@@ -145,8 +145,9 @@
     <ResourceCompile Include="FatturaView.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="small.ico" />
+    <Image Include="Installer\small.ico" />
     <Image Include="FatturaView.ico" />
+    <Image Include="small.ico" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />
@@ -154,7 +155,11 @@
     <None Include="GUIDA_USO.md" />
     <None Include="GUIDA_RISOLUZIONE_AVVISO_FOXIT.md" />
     <None Include="Installer\Build-Installer.ps1" />
+    <None Include="installer\build_release.ps1" />
     <None Include="Installer\FatturaView.iss" />
+    <None Include="installer\README.md" />
+    <None Include="installer\setup.iss" />
+    <None Include="LICENSE" />
     <None Include="RISPOSTA_AVVISO_FOXIT.md" />
     <None Include="FIX_EXECUTION_POLICY.md" />
     <None Include="EXECUTION_POLICY_RISOLTO.md" />

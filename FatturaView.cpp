@@ -50,7 +50,7 @@ int  g_zoomLevel = 100;                         // Livello zoom corrente (50-200
 HFONT g_hFontNormal = NULL;                     // Font normale per ListBox
 HFONT g_hFontBold = NULL;                       // Font grassetto per intestazioni
 
-#define APP_VERSION L"1.0.0"
+#define APP_VERSION L"1.1.0"
 #define APP_AUTHOR L"Roberto Ferri"
 
 // Costanti per temi Windows 11 (alcune potrebbero non essere definite in vecchie versioni SDK)
@@ -82,9 +82,11 @@ HFONT g_hFontBold = NULL;                       // Font grassetto per intestazio
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+HICON CreateIconWithTransparentBackground(HINSTANCE hInst, int resId, COLORREF bgColor);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    StylesheetSelector(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    PdfSignConfigDialog(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    LicenseDialogProc(HWND, UINT, WPARAM, LPARAM);
 void                OnOpenFile(HWND hWnd);
 void                OnApplyStylesheet(HWND hWnd);
 void                OnApplySpecificStylesheet(HWND hWnd, const std::wstring& keyword);
@@ -107,6 +109,7 @@ std::vector<std::wstring> GetStylesheetsFromResources();
 std::wstring        GetResourcesPath();
 void                ApplyModernWindowTheme(HWND hWnd);
 void                ClearFolderContents(const std::wstring& folderPath);
+HICON               CreateIconWithTransparentBackground(HINSTANCE hInst, int resId, COLORREF bgColor);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -127,8 +130,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         GetTempPathW(MAX_PATH, tempDir);
         g_welcomePath = std::wstring(tempDir) + L"FatturaView_welcome.html";
     }
-    FatturaViewer::SaveHTMLToFile(FatturaViewer::GetWelcomePageHTML(), g_welcomePath);
 
+
+
+
+    // ListBox subclass is set later when the control is created
     // Carica la preferenza del foglio di stile
     LoadStylesheetPreference();
 
@@ -172,8 +178,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     return (int) msg.wParam;
 }
-
-
 
 //
 //  FUNZIONE: MyRegisterClass()
@@ -241,6 +245,17 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Crea la toolbar
    g_hToolbar = CreateToolbar(hWnd, hInstance);
 
+   // Replace application icon with transparent background version if possible
+   // The actual implementation is in a separate helper to avoid defining functions inside wWinMain
+   HICON hAppIcon = CreateIconWithTransparentBackground(hInstance, IDI_XMLREAD, RGB(0, 120, 215));
+   if (hAppIcon)
+   {
+       SendMessageW(hWnd, WM_SETICON, ICON_BIG, (LPARAM)hAppIcon);
+       SendMessageW(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hAppIcon);
+   }
+
+   // Icona allegato disegnata dinamicamente nel WM_DRAWITEM (no bitmap creata qui)
+
    // Crea la status bar
    g_hStatusBar = CreateWindowEx(0, STATUSCLASSNAME, NULL,
        WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
@@ -277,14 +292,43 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Crea una ListBox per mostrare le fatture (pannello sinistro) con selezione multipla
    // Usa LBS_OWNERDRAWFIXED per disegnare manualmente gli elementi con colori
    g_hListBox = CreateWindowExW(WS_EX_CLIENTEDGE, L"LISTBOX", NULL,
-      WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_EXTENDEDSEL | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS,
+      WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_EXTENDEDSEL | LBS_OWNERDRAWVARIABLE | LBS_HASSTRINGS,
       margin, topOffset,  // Allineato con la toolbar (20px dal bordo)
       leftPanelWidth, 
       rcClient.bottom - topOffset - margin - statusHeight,
       hWnd, (HMENU)IDC_LISTBOX_FATTURE, hInstance, NULL);
 
-   // Imposta l'altezza degli elementi (più alta per stile moderno card-like)
-   SendMessage(g_hListBox, LB_SETITEMHEIGHT, 0, (LPARAM)32);
+   // Per owner-draw variabile impostiamo altezza per singolo elemento dinamicamente
+
+   // Subclass the listbox to handle mouse wheel directly when cursor is over it
+   if (g_hListBox)
+   {
+       // Use a static callback function for subclassing
+       SetWindowSubclass(g_hListBox, [](HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) -> LRESULT
+       {
+           switch (uMsg)
+           {
+               case WM_MOUSEWHEEL:
+               {
+                   int z = GET_WHEEL_DELTA_WPARAM(wParam);
+                   int lines = abs(z) / WHEEL_DELTA;
+                   if (lines < 1) lines = 1;
+                   WPARAM action = (z > 0) ? SB_LINEUP : SB_LINEDOWN;
+                   for (int i = 0; i < lines; ++i)
+                       SendMessage(hwnd, WM_VSCROLL, MAKELONG(action, 0), 0);
+                   return 0;
+               }
+               case WM_MOUSEMOVE:
+               {
+                   HWND fg = GetFocus();
+                   if (fg != hwnd)
+                       SetFocus(hwnd);
+                   break;
+               }
+           }
+           return DefSubclassProc(hwnd, uMsg, wParam, lParam);
+       }, 0, 0);
+   }
 
    // Crea il controllo browser per visualizzazione (pannello destro, ridotto per la nav bar)
    int browserWidth = rcClient.right - leftPanelWidth - 3 * margin;
@@ -499,6 +543,86 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 rcText.left += 8;  // Padding sinistro
                 rcText.right -= 8; // Padding destro
 
+                // Se la fattura ha allegati, disegna una piccola icona "graffetta" a destra
+                int iconWidth = 0;
+                if (!isHeader && !isEmptyLine && pDIS->itemID < g_listBoxToFatturaIndex.size())
+                {
+                    int fatturaIndex = g_listBoxToFatturaIndex[pDIS->itemID];
+                    if (fatturaIndex >= 0 && fatturaIndex < (int)g_fattureInfo.size() && g_fattureInfo[fatturaIndex].hasAllegati)
+                    {
+                        // Disegna lo stesso simbolo "allegato" usato nell'HTML (📎) usando un font emoji
+                        int itemH = pDIS->rcItem.bottom - pDIS->rcItem.top;
+                        // Use a smaller, tighter icon so it looks less prominent and sits near the amount
+                        int ih = min(18, max(12, itemH - 12));
+                        if (ih < 12) ih = 12;
+
+                        // Position icon closer to the amount (right side) with minimal padding
+                        int ix = pDIS->rcItem.right - 6 - ih;
+                        int iy = pDIS->rcItem.top + (itemH - ih) / 2;
+
+                        // Small expansion to reduce clipping of emoji glyphs
+                        RECT rcIcon = { ix - 1, iy - 1, ix + ih + 2, iy + ih + 2 };
+
+                        // Compute font height based on icon height
+                        int logPx = GetDeviceCaps(pDIS->hDC, LOGPIXELSY);
+                        int fontHeight = -MulDiv(ih, logPx, 72);
+
+                        // Draw a stylized, minimal paperclip using two smooth polylines
+                        HPEN hPen = CreatePen(PS_SOLID, max(1, ih / 10), clrText);
+                        HPEN hOldPen = (HPEN)SelectObject(pDIS->hDC, hPen);
+                        HBRUSH hOldBrush = (HBRUSH)SelectObject(pDIS->hDC, GetStockObject(NULL_BRUSH));
+
+                        // Draw a more classic paperclip loop similar to mail clients
+                        // Use an outer smooth-ish polyline and an inner offset loop
+                        POINT outer[9];
+                        outer[0].x = ix + (int)(0.18f * ih); outer[0].y = iy + (int)(0.88f * ih);
+                        outer[1].x = ix + (int)(0.18f * ih); outer[1].y = iy + (int)(0.28f * ih);
+                        outer[2].x = ix + (int)(0.30f * ih); outer[2].y = iy + (int)(0.12f * ih);
+                        outer[3].x = ix + (int)(0.52f * ih); outer[3].y = iy + (int)(0.08f * ih);
+                        outer[4].x = ix + (int)(0.78f * ih); outer[4].y = iy + (int)(0.28f * ih);
+                        outer[5].x = ix + (int)(0.78f * ih); outer[5].y = iy + (int)(0.60f * ih);
+                        outer[6].x = ix + (int)(0.58f * ih); outer[6].y = iy + (int)(0.84f * ih);
+                        outer[7].x = ix + (int)(0.40f * ih); outer[7].y = iy + (int)(0.92f * ih);
+                        outer[8].x = ix + (int)(0.26f * ih); outer[8].y = iy + (int)(0.78f * ih);
+
+                        POINT inner[9];
+                        for (int k = 0; k < 9; ++k)
+                        {
+                            // offset points slightly toward the center to create the inner loop
+                            inner[k].x = ix + (int)((outer[k].x - ix) * 0.62f);
+                            inner[k].y = iy + (int)((outer[k].y - iy) * 0.62f);
+                        }
+
+                        // Draw the same paperclip emoji used in the HTML view (U+1F4CE)
+                        const wchar_t paperclipEmoji[] = { 0xD83D, 0xDCCE, 0x0000 };
+
+                        // Create an emoji-capable font sized to the icon height
+                        HFONT hEmojiFont = CreateFontW(
+                            -MulDiv(ih, GetDeviceCaps(pDIS->hDC, LOGPIXELSY), 72),
+                            0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                            L"Segoe UI Emoji");
+
+                        HFONT hPrevFont = (HFONT)SelectObject(pDIS->hDC, hEmojiFont);
+                        SetTextColor(pDIS->hDC, clrText);
+                        SetBkMode(pDIS->hDC, TRANSPARENT);
+
+                        SIZE emojiSize = { 0 };
+                        GetTextExtentPoint32W(pDIS->hDC, paperclipEmoji, 2, &emojiSize);
+                        int ey = iy + (ih - emojiSize.cy) / 2;
+                        TextOutW(pDIS->hDC, ix, ey, paperclipEmoji, 2);
+
+                        // Restore and cleanup
+                        SelectObject(pDIS->hDC, hPrevFont);
+                        DeleteObject(hEmojiFont);
+
+                        iconWidth = emojiSize.cx + 4;
+                        // Reserve a little space on the right so the clip sits close to the amount
+                        rcText.right -= iconWidth + 1;
+                    }
+                }
+
                 // Per le fatture normali (non header), applica grassetto solo al cessionario
                 if (!isHeader && !isEmptyLine)
                 {
@@ -506,44 +630,56 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     size_t firstPipe = itemText.find(L'|');
                     size_t secondPipe = itemText.find(L'|', firstPipe + 1);
 
+                    int itemH = pDIS->rcItem.bottom - pDIS->rcItem.top;
+
+                    // Prepara il rettangolo e la variabile di misura del testo
+                    RECT rcPart = rcText;
+                    SIZE textSize;
+
                     if (firstPipe != std::wstring::npos && secondPipe != std::wstring::npos)
                     {
                         // Estrai le tre parti del testo
                         std::wstring part1 = itemText.substr(0, firstPipe + 1);  // "  N. 123 del 2024-01-15 |"
                         std::wstring part2 = itemText.substr(firstPipe + 1, secondPipe - firstPipe - 1);  // " Cessionario "
                         std::wstring part3 = itemText.substr(secondPipe);  // "| € 1000.00"
-
-                        // Prepara il rettangolo per il disegno
-                        RECT rcPart = rcText;
-                        SIZE textSize;
-
-                        // Disegna la prima parte (numero e data) con font normale
-                        HFONT hOldFont = (HFONT)SelectObject(pDIS->hDC, g_hFontNormal);
-                        DrawText(pDIS->hDC, part1.c_str(), -1, &rcPart, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_CALCRECT);
-                        DrawText(pDIS->hDC, part1.c_str(), -1, &rcPart, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-                        GetTextExtentPoint32(pDIS->hDC, part1.c_str(), (int)part1.length(), &textSize);
-                        rcPart.left += textSize.cx;
+                        // Disegna la prima parte (numero e data) con font normale usando DT_CALCRECT per altezza corretta
+                        HFONT hSaved = (HFONT)SelectObject(pDIS->hDC, g_hFontNormal);
+                        RECT rcalc = { 0,0,1000,0 };
+                        DrawTextW(pDIS->hDC, part1.c_str(), (int)part1.length(), &rcalc, DT_LEFT | DT_SINGLELINE | DT_CALCRECT);
+                        int h1 = rcalc.bottom - rcalc.top;
+                        int y = pDIS->rcItem.top + (itemH - h1) / 2;
+                        SetTextColor(pDIS->hDC, clrText);
+                        TextOutW(pDIS->hDC, rcPart.left, y, part1.c_str(), (int)part1.length());
+                        rcPart.left += (rcalc.right - rcalc.left);
 
                         // Disegna la seconda parte (cessionario) con font grassetto
                         SelectObject(pDIS->hDC, g_hFontBold);
-                        DrawText(pDIS->hDC, part2.c_str(), -1, &rcPart, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_CALCRECT);
-                        DrawText(pDIS->hDC, part2.c_str(), -1, &rcPart, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-                        GetTextExtentPoint32(pDIS->hDC, part2.c_str(), (int)part2.length(), &textSize);
-                        rcPart.left += textSize.cx;
+                        rcalc = { 0,0,1000,0 };
+                        DrawTextW(pDIS->hDC, part2.c_str(), (int)part2.length(), &rcalc, DT_LEFT | DT_SINGLELINE | DT_CALCRECT);
+                        int h2 = rcalc.bottom - rcalc.top;
+                        int y2 = pDIS->rcItem.top + (itemH - h2) / 2;
+                        TextOutW(pDIS->hDC, rcPart.left, y2, part2.c_str(), (int)part2.length());
+                        rcPart.left += (rcalc.right - rcalc.left);
 
                         // Disegna la terza parte (importo) con font normale
                         SelectObject(pDIS->hDC, g_hFontNormal);
-                        DrawText(pDIS->hDC, part3.c_str(), -1, &rcPart, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                        rcalc = { 0,0,1000,0 };
+                        DrawTextW(pDIS->hDC, part3.c_str(), (int)part3.length(), &rcalc, DT_LEFT | DT_SINGLELINE | DT_CALCRECT);
+                        int h3 = rcalc.bottom - rcalc.top;
+                        int y3 = pDIS->rcItem.top + (itemH - h3) / 2;
+                        TextOutW(pDIS->hDC, rcPart.left, y3, part3.c_str(), (int)part3.length());
 
-                        SelectObject(pDIS->hDC, hOldFont);
+                        // Ripristina il font precedente
+                        SelectObject(pDIS->hDC, hSaved);
                     }
                     else
                     {
-                        // Fallback: disegna normalmente se non trova i delimitatori
-                        HFONT hOldFont = (HFONT)SelectObject(pDIS->hDC, hFont);
-                        DrawText(pDIS->hDC, itemText.c_str(), -1, &rcText, 
-                            DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-                        SelectObject(pDIS->hDC, hOldFont);
+                        // Fallback: disegna normalmente se non trova i delimitatori usando centratura manuale
+                        HFONT hSaved = (HFONT)SelectObject(pDIS->hDC, hFont);
+                        GetTextExtentPoint32(pDIS->hDC, itemText.c_str(), (int)itemText.length(), &textSize);
+                        int y = pDIS->rcItem.top + (itemH - textSize.cy) / 2;
+                        TextOutW(pDIS->hDC, rcText.left, y, itemText.c_str(), (int)itemText.length());
+                        SelectObject(pDIS->hDC, hSaved);
                     }
                 }
                 else
@@ -556,6 +692,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
 
                 return TRUE;
+            }
+        }
+        break;
+    case WM_MOUSEWHEEL:
+        {
+            // Forward mouse wheel to the left listbox when cursor is over it
+            if (g_hListBox)
+            {
+                // lParam contains screen coordinates of the cursor
+                POINT pt;
+                pt.x = GET_X_LPARAM(lParam);
+                pt.y = GET_Y_LPARAM(lParam);
+
+                // Convert listbox rect to screen coordinates and test
+                RECT rcLB;
+                GetWindowRect(g_hListBox, &rcLB);
+
+                if (PtInRect(&rcLB, pt))
+                {
+                    int z = GET_WHEEL_DELTA_WPARAM(wParam);
+                    int lines = abs(z) / WHEEL_DELTA;
+                    if (lines < 1) lines = 1;
+                    WPARAM action = (z > 0) ? SB_LINEUP : SB_LINEDOWN;
+                    for (int i = 0; i < lines; ++i)
+                    {
+                        SendMessage(g_hListBox, WM_VSCROLL, MAKELONG(action, 0), 0);
+                    }
+                    return 0;
+                }
             }
         }
         break;
@@ -578,11 +743,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
-            // Analizzare le selezioni di menu:
             switch (wmId)
             {
             case IDM_ABOUT:
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                break;
+            case IDM_SHOW_LICENSE:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_LICENSE_DIALOG), hWnd, LicenseDialogProc);
                 break;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
@@ -969,7 +1136,7 @@ INT_PTR CALLBACK StylesheetSelector(HWND hDlg, UINT message, WPARAM wParam, LPAR
 
                 // Se questo è il foglio corrente, selezionalo
                 std::wstring currentName = g_lastXsltPath;
-                size_t pos = currentName.find_last_of(L"\\");
+                size_t pos = currentName.find_last_of(L"\\/");
                 if (pos != std::wstring::npos)
                     currentName = currentName.substr(pos + 1);
 
@@ -1488,6 +1655,84 @@ void LoadFattureList(HWND hWnd)
         SendMessage(g_hToolbar, TB_ENABLEBUTTON, IDM_APPLY_MINISTERO, MAKELONG(hasFatture, 0));
         SendMessage(g_hToolbar, TB_ENABLEBUTTON, IDM_APPLY_ASSOSOFTWARE, MAKELONG(hasFatture, 0));
     }
+
+    // Imposta l'altezza variabile degli elementi: righe fattura più alte per migliore leggibilità
+    if (g_hListBox)
+    {
+        int itemCount = (int)SendMessage(g_hListBox, LB_GETCOUNT, 0, 0);
+        for (int idx = 0; idx < itemCount; ++idx)
+        {
+            int mapIdx = (idx < (int)g_listBoxToFatturaIndex.size()) ? g_listBoxToFatturaIndex[idx] : -1;
+            if (mapIdx == -1)
+            {
+                // intestazione o riga vuota: altezza leggermente più piccola
+                SendMessage(g_hListBox, LB_SETITEMHEIGHT, (WPARAM)idx, (LPARAM)36);
+            }
+            else
+            {
+                // riga fattura: altezza aumentata per evidenziare i dati generali
+                // Aumentata per ospitare l'icona "pinzetta" (paperclip)
+                SendMessage(g_hListBox, LB_SETITEMHEIGHT, (WPARAM)idx, (LPARAM)72);
+            }
+        }
+    }
+}
+
+// Costruisce la sezione HTML degli allegati da iniettare nella fattura visualizzata
+static std::wstring BuildAttachmentsHtml(const std::vector<AllegatoInfo>& allegati)
+{
+    if (allegati.empty()) return L"";
+
+    std::wstring html;
+    // Use the original simple emoji entities for the HTML attachments section
+    // (restore original behaviour: show paperclip emoji in the HTML view)
+    // Align attachments to the left (not centered) so they visually match the invoice list
+    html += L"<div style=\"margin:20px 0;max-width:800px;padding:14px 16px;"
+            L"border:2px solid #6366f1;border-radius:10px;"
+            L"font-family:'Segoe UI',Arial,sans-serif;background:#f0f4ff;\">";
+    html += L"<p style=\"margin:0 0 10px 0;font-weight:bold;color:#4f46e5;font-size:1em;\">";
+    // Original: use paperclip emoji for the header in the HTML view
+    html += L"&#128206; Allegati (" + std::to_wstring(allegati.size()) + L")</p>";
+    html += L"<ul style=\"list-style:none;padding:0;margin:0;\">";
+
+    for (const auto& att : allegati)
+    {
+        // Costruisce URL fvatt:///C:/path/to/file
+        std::wstring url = L"fvatt:///";
+        for (wchar_t c : att.filePath)
+        {
+            if      (c == L'\\') url += L'/';
+            else if (c == L' ')  url += L"%20";
+            else                 url += c;
+        }
+
+        html += L"<li style=\"padding:7px 0;border-bottom:1px solid #c7d2fe;\">";
+        html += L"<a href=\"" + url + L"\" style=\"color:#4f46e5;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;\">";
+        // Use the same paperclip emoji as the header for consistency
+        html += L"&#128206; " + att.nomeAttachment + L"</a>";
+        if (!att.descrizione.empty())
+            html += L" <span style=\"color:#6b7280;font-size:0.9em;\"> - " + att.descrizione + L"</span>";
+        if (!att.formato.empty())
+            html += L" <span style=\"background:#e0e7ff;color:#4f46e5;padding:2px 8px;"
+                    L"border-radius:10px;font-size:0.78em;font-weight:600;\">" + att.formato + L"</span>";
+        html += L"</li>";
+    }
+
+    html += L"</ul></div>";
+    return html;
+}
+
+// Inietta la sezione allegati nell'HTML prima di </body>
+static void InjectAttachmentsIntoHtml(std::wstring& htmlOutput, const std::vector<AllegatoInfo>& allegati)
+{
+    if (allegati.empty()) return;
+    std::wstring section = BuildAttachmentsHtml(allegati);
+    size_t pos = htmlOutput.rfind(L"</body>");
+    if (pos == std::wstring::npos) pos = htmlOutput.rfind(L"</BODY>");
+    if (pos != std::wstring::npos)
+        htmlOutput.insert(pos, section);
+    else
+        htmlOutput += section;
 }
 
 void OnApplyStylesheet(HWND hWnd)
@@ -1564,6 +1809,11 @@ void OnApplyStylesheet(HWND hWnd)
         if (g_hBrowserWnd)
             FatturaViewer::ShowNotification(g_hBrowserWnd, L"Generazione visualizzazione...", L"info");
 
+        // Estrai allegati embedded e iniettali nell'HTML
+        std::wstring attachFolder = g_extractPath + L"allegati\\";
+        std::vector<AllegatoInfo> allegati = g_pParser->ExtractAttachments(g_currentXmlPath, attachFolder);
+        InjectAttachmentsIntoHtml(htmlOutput, allegati);
+
         // Salva l'HTML in un file temporaneo
         std::wstring htmlPath = g_extractPath + L"fattura_visualizzata.html";
         FatturaViewer::SaveHTMLToFile(htmlOutput, htmlPath);
@@ -1577,9 +1827,21 @@ void OnApplyStylesheet(HWND hWnd)
         // ===== FINE LOADER - SUCCESSO =====
         SetCursor(hOldCursor);
         if (g_hStatusBar)
-            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Fattura visualizzata");
+        {
+            std::wstring statusMsg = L"Fattura visualizzata";
+            if (!allegati.empty())
+                statusMsg += L" | " + std::to_wstring(allegati.size()) +
+                    (allegati.size() == 1 ? L" allegato" : L" allegati");
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)statusMsg.c_str());
+        }
         if (g_hBrowserWnd)
-            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Fattura visualizzata correttamente", L"success");
+        {
+            std::wstring notifMsg = L"Fattura visualizzata";
+            if (!allegati.empty())
+                notifMsg += L" \u2022 " + std::to_wstring(allegati.size()) +
+                    (allegati.size() == 1 ? L" allegato disponibile" : L" allegati disponibili");
+            FatturaViewer::ShowNotification(g_hBrowserWnd, notifMsg, L"success");
+        }
     }
     else
     {
@@ -1693,6 +1955,11 @@ void OnApplyStylesheetMultiple(HWND hWnd, const std::wstring& xsltPath, const st
         std::wstring htmlOutput;
         if (!g_pParser->ApplyXsltTransform(xsltPath, htmlOutput))
             continue;
+
+        // Estrai allegati per questa fattura e iniettali nell'HTML
+        std::wstring attachFolder = g_extractPath + L"allegati_seq_" + std::to_wstring(i) + L"\\";
+        std::vector<AllegatoInfo> allegati = g_pParser->ExtractAttachments(g_fattureInfo[fatIdx].filePath, attachFolder);
+        InjectAttachmentsIntoHtml(htmlOutput, allegati);
 
         // Salva ogni fattura in un file HTML separato
         std::wstring htmlPath = g_extractPath + L"fattura_seq_" + std::to_wstring(i) + L".html";
@@ -2188,4 +2455,227 @@ void ApplyModernWindowTheme(HWND hWnd)
     // 6. Bordi arrotondati moderni
     MARGINS margins = { 0, 0, 0, 0 };
     DwmExtendFrameIntoClientArea(hWnd, &margins);
+}
+
+// Create an icon from resources replacing a solid background color with transparency
+HICON CreateIconWithTransparentBackground(HINSTANCE hInst, int resId, COLORREF bgColor)
+{
+    HICON hIcon = (HICON)LoadImageW(hInst, MAKEINTRESOURCEW(resId), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+    if (!hIcon)
+        return NULL;
+
+    ICONINFO ii;
+    if (!GetIconInfo(hIcon, &ii))
+        return hIcon;
+
+    BITMAP bmpColor = {0};
+    if (ii.hbmColor)
+        GetObject(ii.hbmColor, sizeof(bmpColor), &bmpColor);
+
+    HDC hdc = GetDC(NULL);
+
+    if (ii.hbmColor)
+    {
+        int w = bmpColor.bmWidth;
+        int h = bmpColor.bmHeight;
+        BITMAPINFO bi = {0};
+        bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth = w;
+        bi.bmiHeader.biHeight = -h; // top-down
+        bi.bmiHeader.biPlanes = 1;
+        bi.bmiHeader.biBitCount = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
+
+        void* pvBits = NULL;
+        HBITMAP hbm32 = CreateDIBSection(hdc, &bi, DIB_RGB_COLORS, &pvBits, NULL, 0);
+        if (hbm32 && pvBits)
+        {
+            HDC hMem = CreateCompatibleDC(hdc);
+            HBITMAP hOld = (HBITMAP)SelectObject(hMem, hbm32);
+            HDC hIconDC = CreateCompatibleDC(hdc);
+            HBITMAP hOld2 = (HBITMAP)SelectObject(hIconDC, ii.hbmColor);
+
+            BitBlt(hMem, 0, 0, w, h, hIconDC, 0, 0, SRCCOPY);
+
+            DWORD* pixels = (DWORD*)pvBits;
+            COLORREF target = bgColor & 0x00FFFFFF;
+            for (int y = 0; y < h; ++y)
+            {
+                for (int x = 0; x < w; ++x)
+                {
+                    DWORD px = pixels[y * w + x];
+                    COLORREF col = RGB(GetRValue(px), GetGValue(px), GetBValue(px));
+                    if ((col & 0x00FFFFFF) == target)
+                        pixels[y * w + x] = 0x00000000; // fully transparent
+                    else
+                        pixels[y * w + x] = 0xFF000000 | (px & 0x00FFFFFF);
+                }
+            }
+
+            ICONINFO newii = {0};
+            newii.fIcon = ii.fIcon;
+            newii.xHotspot = ii.xHotspot;
+            newii.yHotspot = ii.yHotspot;
+            newii.hbmMask = ii.hbmMask;
+            newii.hbmColor = hbm32;
+
+            HICON hNewIcon = CreateIconIndirect(&newii);
+
+            SelectObject(hIconDC, hOld2);
+            DeleteDC(hIconDC);
+            SelectObject(hMem, hOld);
+            DeleteDC(hMem);
+            DeleteObject(hbm32);
+
+            ReleaseDC(NULL, hdc);
+            if (ii.hbmColor) DeleteObject(ii.hbmColor);
+            if (ii.hbmMask) DeleteObject(ii.hbmMask);
+            DestroyIcon(hIcon);
+
+            return hNewIcon;
+        }
+    }
+
+    if (ii.hbmColor) DeleteObject(ii.hbmColor);
+    if (ii.hbmMask) DeleteObject(ii.hbmMask);
+    ReleaseDC(NULL, hdc);
+    return hIcon;
+}
+
+INT_PTR CALLBACK LicenseDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    static HFONT hLicenseFont = NULL;
+    switch (message)
+    {
+    case WM_INITDIALOG:
+    {
+        // Cerca LICENSE prima in g_appPath, poi in working dir
+        std::wstring text;
+        std::wstring licensePath = g_appPath + L"LICENSE";
+        FILE* f = nullptr;
+        _wfopen_s(&f, licensePath.c_str(), L"rt, ccs=UTF-8");
+        if (!f) {
+            // Prova anche working directory
+            _wfopen_s(&f, L"LICENSE", L"rt, ccs=UTF-8");
+        }
+        if (f) {
+            wchar_t buf[1024];
+            while (fgetws(buf, 1024, f))
+                text += buf;
+            fclose(f);
+        } else {
+            // Versione inglese hardcoded
+            text =
+                L"MIT License\r\n\r\n"
+                L"Copyright (c) 2026 Roberto Ferri\r\n\r\n"
+                L"Permission is hereby granted, free of charge, to any person obtaining a copy\r\n"
+                L"of this software and associated documentation files (the \"Software\"), to deal\r\n"
+                L"in the Software without restriction, including without limitation the rights\r\n"
+                L"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\r\n"
+                L"copies of the Software, and to permit persons to whom the Software is\r\n"
+                L"furnished to do so, subject to the following conditions:\r\n\r\n"
+                L"The above copyright notice and this permission notice shall be included in all\r\n"
+                L"copies or substantial portions of the Software.\r\n\r\n"
+                L"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\r\n"
+                L"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\r\n"
+                L"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\r\n"
+                L"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\r\n"
+                L"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\r\n"
+                L"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\r\n"
+                L"SOFTWARE.\r\n";
+        }
+        // Aggiungi versione italiana (solo ASCII)
+        text += L"\r\n\r\n--- Versione italiana non ufficiale ---\r\n";
+        text += L"Licenza MIT\r\n\r\n";
+        text += L"Copyright (c) 2026 Roberto Ferri\r\n\r\n";
+        text += L"Con la presente si concede gratuitamente a chiunque ottenga una copia di questo software e dei relativi file di documentazione (il 'Software'), il permesso di trattare il Software senza restrizioni, inclusi senza limitazione i diritti di usare, copiare, modificare, unire, pubblicare, distribuire, concedere in sublicenza e/o vendere copie del Software, e di permettere alle persone a cui il Software e' fornito di farlo, alle seguenti condizioni:\r\n\r\n";
+        text += L"L'avviso di copyright di cui sopra e questo avviso di autorizzazione devono essere inclusi in tutte le copie o parti sostanziali del Software.\r\n\r\n";
+        text += L"IL SOFTWARE VIENE FORNITO 'COSI' COM'E'', SENZA GARANZIE DI ALCUN TIPO, ESPLICITE O IMPLICITE, INCLUSE MA NON LIMITATE ALLE GARANZIE DI COMMERCIABILITA', IDONEITA' PER UNO SCOPO PARTICOLARE E NON VIOLAZIONE. IN NESSUN CASO GLI AUTORI O I DETENTORI DEL COPYRIGHT SARANNO RESPONSABILI PER QUALSIASI RECLAMO, DANNO O ALTRA RESPONSABILITA', SIA IN UN'AZIONE DI CONTRATTO, ILLECITO O ALTRO, DERIVANTE DA, O IN CONNESSIONE CON IL SOFTWARE O L'USO O ALTRI RAPPORTI NEL SOFTWARE.\r\n";
+        // Format nicer: add clear title, separators and paragraph spacing
+        std::wstring formatted;
+        formatted += L"MIT License\r\n";
+        formatted += L"\r\n";
+        formatted += L"Copyright (c) 2026 Roberto Ferri\r\n";
+        // Use plain ASCII separator to avoid rendering issues with some fonts
+        formatted += L"------------------------------------------------------------\r\n\r\n";
+
+        // Ensure paragraphs are separated by an empty line for readability
+        auto appendWithParagraphs = [&formatted](const std::wstring& src)
+        {
+            // split on \r\n and rejoin ensuring single blank line between paragraphs
+            size_t pos = 0;
+            size_t len = src.length();
+            std::wstring paragraph;
+            for (size_t i = 0; i < len; ++i)
+            {
+                paragraph += src[i];
+                if (i + 1 < len && src[i] == L'\r' && src[i+1] == L'\n')
+                {
+                    // consume the \n as well
+                    ++i;
+                    // trim trailing spaces
+                    while (!paragraph.empty() && (paragraph.back() == L'\r' || paragraph.back() == L'\n'))
+                        paragraph.pop_back();
+                    // add paragraph and a blank line
+                    formatted += paragraph;
+                    formatted += L"\r\n\r\n";
+                    paragraph.clear();
+                }
+            }
+            if (!paragraph.empty())
+            {
+                formatted += paragraph;
+                formatted += L"\r\n\r\n";
+            }
+        };
+
+        appendWithParagraphs(text);
+
+        // Italian section header
+        formatted += L"--- Versione italiana (non ufficiale) ---\r\n\r\n";
+        // Build italian text from existing appended portion (we appended italian already in 'text')
+        // To avoid duplication if italian already included, append nothing extra here.
+
+        SetDlgItemTextW(hDlg, IDC_LICENSE_TEXT, formatted.c_str());
+        // Migliora la formattazione della casella di testo: usa un font leggibile e rendi read-only
+        if (!hLicenseFont)
+        {
+            HDC hdc = GetDC(hDlg);
+            int logPixY = GetDeviceCaps(hdc, LOGPIXELSY);
+            ReleaseDC(hDlg, hdc);
+
+            // 10pt Segoe UI
+            hLicenseFont = CreateFontW(-MulDiv(10, logPixY, 72), 0, 0, 0, FW_NORMAL,
+                FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                L"Segoe UI");
+        }
+
+        HWND hText = GetDlgItem(hDlg, IDC_LICENSE_TEXT);
+        if (hText)
+        {
+            SendMessageW(hText, WM_SETFONT, (WPARAM)hLicenseFont, TRUE);
+            // Make sure the control is read-only (if it's an edit control)
+            SendMessageW(hText, EM_SETREADONLY, TRUE, 0);
+            // Move caret to start and scroll to top
+            SendMessageW(hText, EM_SETSEL, 0, 0);
+            SendMessageW(hText, EM_SCROLLCARET, 0, 0);
+        }
+
+        return (INT_PTR)TRUE;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            if (hLicenseFont)
+            {
+                DeleteObject(hLicenseFont);
+                hLicenseFont = NULL;
+            }
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
 }

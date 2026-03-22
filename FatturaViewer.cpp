@@ -66,12 +66,41 @@ public:
             if (bstrURL)
             {
                 std::wstring url(bstrURL);
-                if (url.rfind(L"http", 0) == 0)
+                bool isHttp       = (url.rfind(L"http", 0) == 0);
+                bool isAttachment = (url.rfind(L"fvatt://", 0) == 0);
+
+                if (isHttp || isAttachment)
                 {
                     VARIANT* pCancel = &pParams->rgvarg[0];
                     if (pCancel->vt == (VT_BOOL | VT_BYREF) && pCancel->pboolVal)
                         *pCancel->pboolVal = VARIANT_TRUE;
-                    ShellExecuteW(m_hParent, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+
+                    if (isAttachment)
+                    {
+                        // fvatt:///C:/path/to/file  ->  C:\path\to\file
+                        std::wstring path = url.substr(8); // salta "fvatt://"
+                        while (!path.empty() && path[0] == L'/')
+                            path = path.substr(1);
+                        std::wstring decoded;
+                        for (size_t j = 0; j < path.size(); j++)
+                        {
+                            if (path[j] == L'%' && j + 2 < path.size())
+                            {
+                                wchar_t hex[3] = { path[j + 1], path[j + 2], L'\0' };
+                                decoded += (wchar_t)wcstol(hex, nullptr, 16);
+                                j += 2;
+                            }
+                            else if (path[j] == L'/')
+                                decoded += L'\\';
+                            else
+                                decoded += path[j];
+                        }
+                        ShellExecuteW(m_hParent, L"open", decoded.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                    }
+                    else
+                    {
+                        ShellExecuteW(m_hParent, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                    }
                 }
             }
         }

@@ -17,6 +17,7 @@ struct FatturaInfo
     std::wstring data;                  // Data fattura
     std::wstring importoTotale;         // Importo totale
     std::wstring tipoDocumento;         // Tipo documento (TD01, TD04, ecc.)
+    bool hasAllegati = false;           // Indica se la fattura ha allegati
 
     // Metodo per formattare la visualizzazione (numero e data prima, poi cessionario)
     std::wstring GetDisplayText() const
@@ -54,9 +55,23 @@ struct FatturaInfo
         if (!importoTotale.empty())
             text += L" | \x20AC " + importoTotale;  // \x20AC = simbolo Euro
 
+        // Nota: non aggiungiamo simbolo graffetta nel testo di destra perché
+        // l'icona viene disegnata esplicitamente a sinistra nella ListBox.
+
         return text;
     }
 };
+
+// Struttura per memorizzare i dati di un allegato di fattura
+struct AllegatoInfo
+{
+    std::wstring nomeAttachment;    // NomeAttachment
+    std::wstring descrizione;       // DescrizioneAttachment (opzionale)
+    std::wstring formato;           // FormatoAttachment (PDF, XML, ecc.)
+    std::wstring filePath;          // Percorso del file estratto su disco
+};
+
+// NOTE: ExtractAttachments may be called with empty outputFolder to only detect attachments.
 
 class FatturaElettronicaParser
 {
@@ -73,6 +88,8 @@ public:
     bool ExtractFatturaInfo(const std::wstring& xmlPath, FatturaInfo& info);
     std::vector<FatturaInfo> GetFattureInfoFromFolder(const std::wstring& folderPath);
     bool IsFatturaPA(const std::wstring& xmlPath);
+    std::vector<AllegatoInfo> ExtractAttachments(const std::wstring& xmlPath, const std::wstring& outputFolder);
+    bool HasAttachments(const std::wstring& xmlPath);
 
 private:
     IXMLDOMDocument2* m_pXmlDoc;

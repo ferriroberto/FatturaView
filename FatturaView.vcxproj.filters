@@ -57,10 +57,13 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="small.ico">
+    <Image Include="FatturaView.ico">
       <Filter>File di risorse</Filter>
     </Image>
-    <Image Include="FatturaView.ico">
+    <Image Include="Installer\small.ico">
+      <Filter>File di risorse</Filter>
+    </Image>
+    <Image Include="small.ico">
       <Filter>File di risorse</Filter>
     </Image>
   </ItemGroup>
@@ -81,6 +84,10 @@
     </None>
     <None Include="Installer\FatturaView.iss" />
     <None Include="Installer\Build-Installer.ps1" />
+    <None Include="LICENSE" />
+    <None Include="installer\build_release.ps1" />
+    <None Include="installer\setup.iss" />
+    <None Include="installer\README.md" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="esempio_stylesheet.xsl" />
