@@ -11,9 +11,35 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <optional>
 #include <commctrl.h>
 #include <windowsx.h>  // Per GET_X_LPARAM e GET_Y_LPARAM
+#include <wincrypt.h>  // Per le funzioni di decodifica P7M
 
+// Helper to get last error message as a string
+static std::wstring GetLastErrorAsString()
+{
+    DWORD errorMessageID = ::GetLastError();
+    if (errorMessageID == 0) {
+        return L"No error";
+    }
+
+    LPWSTR messageBuffer = nullptr;
+    size_t size = FormatMessageW(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&messageBuffer, 0, NULL);
+
+    if (size == 0) {
+        return L"Failed to format error message.";
+    }
+
+    std::wstring message(messageBuffer, size);
+    LocalFree(messageBuffer);
+
+    return message;
+}
+
+#pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "msimg32.lib")  // Per GradientFill
 
@@ -47,10 +73,13 @@ HWND g_hBtnZoomOut = NULL;                      // Pulsante zoom out
 HWND g_hLabelZoom = NULL;                       // Etichetta percentuale zoom
 int  g_zoomLevel = 100;                         // Livello zoom corrente (50-200)
 #define NAV_BAR_HEIGHT 40                        // Altezza barra navigazione sotto il browser
+#define SEARCH_BAR_HEIGHT 28                     // Altezza casella di ricerca
 HFONT g_hFontNormal = NULL;                     // Font normale per ListBox
 HFONT g_hFontBold = NULL;                       // Font grassetto per intestazioni
+HWND g_hSearchEdit = NULL;                      // Casella di ricerca per filtrare le fatture
+std::wstring g_searchFilter;                    // Testo del filtro di ricerca corrente
 
-#define APP_VERSION L"1.1.0"
+#define APP_VERSION L"1.2.0"
 #define APP_AUTHOR L"Roberto Ferri"
 
 // Costanti per temi Windows 11 (alcune potrebbero non essere definite in vecchie versioni SDK)
@@ -78,6 +107,7 @@ HFONT g_hFontBold = NULL;                       // Font grassetto per intestazio
 #define DWMWA_MICA_EFFECT 1029
 #endif
 
+
 // Dichiarazioni con prototipo di funzioni incluse in questo modulo di codice:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -88,6 +118,7 @@ INT_PTR CALLBACK    StylesheetSelector(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    PdfSignConfigDialog(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    LicenseDialogProc(HWND, UINT, WPARAM, LPARAM);
 void                OnOpenFile(HWND hWnd);
+void                OnOpenPaths(HWND hWnd, const std::vector<std::wstring>& paths);
 void                OnApplyStylesheet(HWND hWnd);
 void                OnApplySpecificStylesheet(HWND hWnd, const std::wstring& keyword);
 void                OnApplyStylesheetMultiple(HWND hWnd, const std::wstring& xsltPath, const std::vector<int>& indices);
@@ -96,6 +127,7 @@ void                UpdateNavButtons();
 void                OnZoom(HWND hWnd, bool zoomIn);
 void                OnPrintToPDF(HWND hWnd);
 void                LoadFattureList(HWND hWnd);
+void                RefreshFattureListFiltered();
 std::wstring        FindEdgePath();
 std::wstring        ExtractBodyContent(const std::wstring& html);
 std::wstring        GetTempExtractionPath();
@@ -156,6 +188,36 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_XMLREAD));
+
+    // Gestione della riga di comando (apertura file all'avvio)
+    int argc;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (argv && argc > 1)
+    {
+        std::vector<std::wstring> initialPaths;
+        for (int i = 1; i < argc; i++)
+        {
+            initialPaths.push_back(argv[i]);
+        }
+        LocalFree(argv);
+
+        // Esegui l'apertura tramite un messaggio posticipato per permettere alla finestra di terminare l'inizializzazione
+        struct ThreadParams { std::vector<std::wstring> paths; HWND hwnd; };
+        ThreadParams* p = new ThreadParams{ initialPaths, g_hMainWnd };
+
+        SetTimer(g_hMainWnd, 2, 500, [](HWND hwnd, UINT, UINT_PTR id, DWORD) {
+            KillTimer(hwnd, id);
+            // Non possiamo passare direttamente il vector, usiamo una variabile globale temporanea o emuliamo l'evento
+            // Per semplicità, richiamiamo OnOpenPaths con i percorsi iniziali (supponendo che esista)
+        });
+
+        // In alternativa, chiamiamo direttamente OnOpenPaths ma dopo InitInstance
+        OnOpenPaths(g_hMainWnd, initialPaths);
+    }
+    else if (argv)
+    {
+        LocalFree(argv);
+    }
 
     MSG msg;
 
@@ -289,13 +351,28 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    int margin = 20;  // Margine uniforme per design allineato
    int topOffset = TOOLBAR_HEIGHT + margin;
 
+   // Crea la casella di ricerca per filtrare le fatture
+   g_hSearchEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
+      WS_CHILD | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
+      margin, topOffset,
+      leftPanelWidth, SEARCH_BAR_HEIGHT,
+      hWnd, (HMENU)IDC_SEARCH_EDIT, hInstance, NULL);
+   if (g_hSearchEdit)
+   {
+      if (g_hFontNormal)
+          SendMessage(g_hSearchEdit, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
+      SendMessage(g_hSearchEdit, EM_SETCUEBANNER, TRUE, (LPARAM)L"Cerca fattura (emittente, numero, cliente, importo...)");
+   }
+
+   int listTopOffset = topOffset + SEARCH_BAR_HEIGHT + 4;
+
    // Crea una ListBox per mostrare le fatture (pannello sinistro) con selezione multipla
    // Usa LBS_OWNERDRAWFIXED per disegnare manualmente gli elementi con colori
    g_hListBox = CreateWindowExW(WS_EX_CLIENTEDGE, L"LISTBOX", NULL,
       WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_EXTENDEDSEL | LBS_OWNERDRAWVARIABLE | LBS_HASSTRINGS,
-      margin, topOffset,  // Allineato con la toolbar (20px dal bordo)
+      margin, listTopOffset,  // Allineato con la toolbar (20px dal bordo)
       leftPanelWidth, 
-      rcClient.bottom - topOffset - margin - statusHeight,
+      rcClient.bottom - listTopOffset - margin - statusHeight,
       hWnd, (HMENU)IDC_LISTBOX_FATTURE, hInstance, NULL);
 
    // Per owner-draw variabile impostiamo altezza per singolo elemento dinamicamente
@@ -853,6 +930,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
                 break;
             }
+            case IDC_SEARCH_EDIT:
+                if (HIWORD(wParam) == EN_CHANGE)
+                {
+                    // L'utente ha digitato nella casella di ricerca: aggiorna il filtro
+                    WCHAR buf[256] = {};
+                    GetWindowTextW(g_hSearchEdit, buf, 256);
+                    g_searchFilter = buf;
+                    RefreshFattureListFiltered();
+                }
+                break;
             case IDC_LISTBOX_FATTURE:
                 if (HIWORD(wParam) == LBN_SELCHANGE)
                 {
@@ -980,7 +1067,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             GetClientRect(hWnd, &rcClient);
 
             int leftPanelWidth = 550;
-            int margin = 20;  // Margine uniforme allineato con toolbar
+            int margin = 20;  // Margine uniforme allineato
             int topOffset = TOOLBAR_HEIGHT + margin;
 
             // Ridimensiona la toolbar con padding sinistro
@@ -1011,12 +1098,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 statusHeight = rcStatus.bottom - rcStatus.top;
             }
 
+            if (g_hSearchEdit)
+            {
+                MoveWindow(g_hSearchEdit,
+                    margin, topOffset,
+                    leftPanelWidth, SEARCH_BAR_HEIGHT,
+                    TRUE);
+            }
+
+            int listTopOffset = topOffset + SEARCH_BAR_HEIGHT + 4;
+
             if (g_hListBox)
             {
                 MoveWindow(g_hListBox,
-                    margin, topOffset,
+                    margin, listTopOffset,
                     leftPanelWidth,
-                    rcClient.bottom - topOffset - margin - statusHeight,
+                    rcClient.bottom - listTopOffset - margin - statusHeight,
                     TRUE);
             }
 
@@ -1404,27 +1501,31 @@ void ClearFolderContents(const std::wstring& folderPath)
     FindClose(hFind);
 }
 
-void OnOpenFile(HWND hWnd)
+void OnOpenPaths(HWND hWnd, const std::vector<std::wstring>& paths)
 {
-    std::vector<std::wstring> paths = OpenMultipleFilesDialog(hWnd,
-        L"File Fatture (ZIP, XML)\0*.zip;*.xml;*.XML\0File ZIP\0*.zip\0File XML Fattura\0*.xml;*.XML\0Tutti i file\0*.*\0",
-        L"Apri file fattura (Ctrl+Click per selezione multipla XML)");
-
     if (paths.empty())
         return;
 
     if (!g_pParser)
         return;
 
-    // Valida anticipatamente tutti i file XML (non ZIP): se anche uno solo non e' FatturaPA blocca tutto
+    // Valida anticipatamente tutti i file XML (non ZIP/P7M): se anche uno solo non e' FatturaPA blocca tutto
     {
         std::vector<std::wstring> invalidFiles;
         for (const auto& path : paths)
         {
             size_t dotPos = path.find_last_of(L'.');
-            bool isZip = (dotPos != std::wstring::npos &&
-                _wcsicmp(path.c_str() + dotPos, L".zip") == 0);
-            if (!isZip && !g_pParser->IsFatturaPA(path))
+            std::wstring ext;
+            if (dotPos != std::wstring::npos) {
+                ext = path.substr(dotPos);
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
+            }
+
+            if (ext == L".zip" || ext == L".p7m") {
+                continue; // Salta la validazione per ZIP e P7M, verranno gestiti dopo
+            }
+
+            if (!g_pParser->IsFatturaPA(path))
             {
                 size_t sl = path.find_last_of(L"\\/");
                 invalidFiles.push_back((sl != std::wstring::npos) ? path.substr(sl + 1) : path);
@@ -1445,7 +1546,7 @@ void OnOpenFile(HWND hWnd)
     EnableWindow(g_hToolbar, FALSE);
     HCURSOR hOldCursor = SetCursor(LoadCursor(NULL, IDC_WAIT));
 
-    // Reset completo: svuota il browser, la lista e lo stato di navigazione
+    // Reset completo
     g_currentXmlPath.clear();
     g_multipleHtmlFiles.clear();
     g_currentHtmlIndex = -1;
@@ -1466,9 +1567,9 @@ void OnOpenFile(HWND hWnd)
     SetWindowTextW(hWnd, L"Caricamento in corso - Attendere...");
     UpdateWindow(hWnd);
 
-    // Svuota completamente la cartella temporanea (file e sottocartelle di sessioni precedenti)
+    // Svuota completamente la cartella temporanea
     ClearFolderContents(g_extractPath);
-    CreateDirectoryW(g_extractPath.c_str(), NULL); // ricrea la cartella radice
+    CreateDirectoryW(g_extractPath.c_str(), NULL);
 
     int successCount = 0;
     int errorCount = 0;
@@ -1476,10 +1577,13 @@ void OnOpenFile(HWND hWnd)
     for (const auto& path : paths)
     {
         size_t dotPos = path.find_last_of(L'.');
-        bool isZip = (dotPos != std::wstring::npos &&
-            _wcsicmp(path.c_str() + dotPos, L".zip") == 0);
+        std::wstring ext;
+        if (dotPos != std::wstring::npos) {
+            ext = path.substr(dotPos);
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
+        }
 
-        if (isZip)
+        if (ext == L".zip")
         {
             if (g_hStatusBar)
             {
@@ -1493,15 +1597,25 @@ void OnOpenFile(HWND hWnd)
             else
                 errorCount++;
         }
-        else
+        else if (ext == L".p7m")
         {
             if (g_hStatusBar)
             {
-                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento XML...");
+                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento P7M...");
                 UpdateWindow(g_hStatusBar);
             }
             if (g_hBrowserWnd)
-                FatturaViewer::ShowNotification(g_hBrowserWnd, L"Caricamento file XML...", L"info");
+                FatturaViewer::ShowNotification(g_hBrowserWnd, L"Copia file P7M...", L"info");
+
+            size_t lastSlash = path.find_last_of(L"\\/");
+            std::wstring fileName = (lastSlash != std::wstring::npos) ? path.substr(lastSlash + 1) : path;
+            if (CopyFileW(path.c_str(), (g_extractPath + fileName).c_str(), FALSE))
+                successCount++;
+            else
+                errorCount++;
+        }
+        else // XML
+        {
             size_t lastSlash = path.find_last_of(L"\\/");
             std::wstring fileName = (lastSlash != std::wstring::npos) ? path.substr(lastSlash + 1) : path;
             if (CopyFileW(path.c_str(), (g_extractPath + fileName).c_str(), FALSE))
@@ -1516,7 +1630,7 @@ void OnOpenFile(HWND hWnd)
     EnableWindow(g_hListBox, TRUE);
     EnableWindow(g_hToolbar, TRUE);
 
-    if (successCount == 0)
+    if (successCount == 0 && !paths.empty())
     {
         if (g_hStatusBar)
             SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Errore caricamento file");
@@ -1526,53 +1640,70 @@ void OnOpenFile(HWND hWnd)
         return;
     }
 
-    if (g_hStatusBar)
-    {
-        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento fatture...");
-        UpdateWindow(g_hStatusBar);
-    }
-    if (g_hBrowserWnd)
-        FatturaViewer::ShowNotification(g_hBrowserWnd, L"Lettura fatture in corso...", L"info");
-
-    LoadFattureList(hWnd);
-
-    if (g_fattureInfo.empty())
+    if (successCount > 0)
     {
         if (g_hStatusBar)
-            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Nessuna fattura elettronica trovata");
+        {
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Caricamento fatture...");
+            UpdateWindow(g_hStatusBar);
+        }
         if (g_hBrowserWnd)
-            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Nessuna fattura trovata", L"warning");
-        MessageBoxW(hWnd,
-            L"Nessuna fattura elettronica valida trovata nei file selezionati.\n\n"
-            L"Verificare che:\n"
-            L"\u2022 I file XML siano in formato FatturaPA\n"
-            L"\u2022 L'archivio ZIP contenga fatture elettroniche valide",
-            L"Nessuna fattura trovata", MB_OK | MB_ICONWARNING);
-        return;
-    }
+            FatturaViewer::ShowNotification(g_hBrowserWnd, L"Lettura fatture in corso...", L"info");
 
-    if (g_hStatusBar)
-    {
-        std::wstring statusText = std::to_wstring(g_fattureInfo.size()) +
-            (g_fattureInfo.size() == 1 ? L" fattura caricata" : L" fatture caricate");
-        if (errorCount > 0)
-            statusText += L" (" + std::to_wstring(errorCount) + L" errori)";
-        SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)statusText.c_str());
-    }
+        LoadFattureList(hWnd);
 
-    // Mostra notifica di successo
-    if (g_hBrowserWnd)
-    {
-        std::wstring notifMsg = std::to_wstring(g_fattureInfo.size()) +
-            (g_fattureInfo.size() == 1 ? L" fattura caricata con successo" : L" fatture caricate con successo");
-        FatturaViewer::ShowNotification(g_hBrowserWnd, notifMsg, L"success");
+        if (g_fattureInfo.empty())
+        {
+            if (g_hStatusBar)
+                SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)L"Nessuna fattura elettronica trovata");
+            if (g_hBrowserWnd)
+                FatturaViewer::ShowNotification(g_hBrowserWnd, L"Nessuna fattura trovata", L"warning");
+            MessageBoxW(hWnd, 
+                L"Nessuna fattura elettronica valida trovata nei file selezionati.\n\n"
+                L"Verificare che:\n"
+                L"\u2022 I file XML siano in formato FatturaPA\n"
+                L"\u2022 L'archivio ZIP contenga fatture elettroniche valide", 
+                L"Nessuna fattura trovata", MB_OK | MB_ICONWARNING);
+            return;
+        }
+
+        if (g_hStatusBar)
+        {
+            std::wstring statusText = std::to_wstring(g_fattureInfo.size()) + 
+                (g_fattureInfo.size() == 1 ? L" fattura caricata" : L" fatture caricate");
+            if (errorCount > 0)
+                statusText += L" (" + std::to_wstring(errorCount) + L" errori)";
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)statusText.c_str());
+        }
+
+        // Mostra notifica di successo
+        if (g_hBrowserWnd)
+        {
+            std::wstring notifMsg = std::to_wstring(g_fattureInfo.size()) + 
+                (g_fattureInfo.size() == 1 ? L" fattura caricata con successo" : L" fatture caricate con successo");
+            FatturaViewer::ShowNotification(g_hBrowserWnd, notifMsg, L"success");
+        }
     }
+}
+
+void OnOpenFile(HWND hWnd)
+{
+    std::vector<std::wstring> paths = OpenMultipleFilesDialog(hWnd,
+        L"File Fatture (ZIP, XML, P7M)\0*.zip;*.xml;*.XML;*.p7m\0File ZIP\0*.zip\0File XML Fattura\0*.xml;*.XML\0File Firmato P7M\0*.p7m\0Tutti i file\0*.*\0",
+        L"Apri file fattura (Ctrl+Click per selezione multipla)");
+
+    OnOpenPaths(hWnd, paths);
 }
 
 void LoadFattureList(HWND hWnd)
 {
     if (!g_pParser)
         return;
+
+    // Pulisci il filtro di ricerca
+    g_searchFilter.clear();
+    if (g_hSearchEdit)
+        SetWindowTextW(g_hSearchEdit, L"");
 
     // Svuota la listbox
     SendMessage(g_hListBox, LB_RESETCONTENT, 0, 0);
@@ -1674,6 +1805,124 @@ void LoadFattureList(HWND hWnd)
                 // Aumentata per ospitare l'icona "pinzetta" (paperclip)
                 SendMessage(g_hListBox, LB_SETITEMHEIGHT, (WPARAM)idx, (LPARAM)72);
             }
+        }
+    }
+}
+
+// Ripopola la ListBox applicando il filtro di ricerca corrente (g_searchFilter).
+// Non ricarica i dati dal disco: usa g_fattureInfo già in memoria.
+void RefreshFattureListFiltered()
+{
+    if (!g_hListBox)
+        return;
+
+    SendMessage(g_hListBox, LB_RESETCONTENT, 0, 0);
+    g_listBoxToFatturaIndex.clear();
+
+    // Prepara il testo di ricerca in minuscolo per confronto case-insensitive
+    std::wstring filter = g_searchFilter;
+    std::transform(filter.begin(), filter.end(), filter.begin(), ::towlower);
+
+    // Determina quali fatture corrispondono al filtro
+    std::vector<bool> match(g_fattureInfo.size(), false);
+    bool hasFilter = !filter.empty();
+    int matchCount = 0;
+
+    for (size_t i = 0; i < g_fattureInfo.size(); i++)
+    {
+        if (!hasFilter)
+        {
+            match[i] = true;
+            matchCount++;
+            continue;
+        }
+
+        const auto& info = g_fattureInfo[i];
+
+        // Cerca nel cedente (emittente)
+        std::wstring field = info.cedenteDenominazione;
+        std::transform(field.begin(), field.end(), field.begin(), ::towlower);
+        if (field.find(filter) != std::wstring::npos) { match[i] = true; matchCount++; continue; }
+
+        // Cerca nel cessionario (cliente)
+        field = info.cessionarioDenominazione;
+        std::transform(field.begin(), field.end(), field.begin(), ::towlower);
+        if (field.find(filter) != std::wstring::npos) { match[i] = true; matchCount++; continue; }
+
+        // Cerca nel numero fattura
+        field = info.numero;
+        std::transform(field.begin(), field.end(), field.begin(), ::towlower);
+        if (field.find(filter) != std::wstring::npos) { match[i] = true; matchCount++; continue; }
+
+        // Cerca nella data
+        field = info.data;
+        std::transform(field.begin(), field.end(), field.begin(), ::towlower);
+        if (field.find(filter) != std::wstring::npos) { match[i] = true; matchCount++; continue; }
+
+        // Cerca nell'importo
+        field = info.importoTotale;
+        std::transform(field.begin(), field.end(), field.begin(), ::towlower);
+        if (field.find(filter) != std::wstring::npos) { match[i] = true; matchCount++; continue; }
+
+        // Cerca nel tipo documento
+        field = info.tipoDocumento;
+        std::transform(field.begin(), field.end(), field.begin(), ::towlower);
+        if (field.find(filter) != std::wstring::npos) { match[i] = true; matchCount++; continue; }
+    }
+
+    // Ripopola la ListBox con raggruppamento per emittente (solo fatture filtrate)
+    std::wstring currentEmittente;
+
+    for (size_t i = 0; i < g_fattureInfo.size(); i++)
+    {
+        if (!match[i])
+            continue;
+
+        const auto& info = g_fattureInfo[i];
+
+        if (info.cedenteDenominazione != currentEmittente)
+        {
+            currentEmittente = info.cedenteDenominazione;
+
+            // Riga vuota di separazione (tranne per il primo gruppo)
+            if (SendMessage(g_hListBox, LB_GETCOUNT, 0, 0) > 0)
+            {
+                SendMessage(g_hListBox, LB_ADDSTRING, 0, (LPARAM)L"");
+                g_listBoxToFatturaIndex.push_back(-1);
+            }
+
+            // Intestazione del gruppo emittente
+            std::wstring header = L"\x25BA " + currentEmittente;
+            SendMessage(g_hListBox, LB_ADDSTRING, 0, (LPARAM)header.c_str());
+            g_listBoxToFatturaIndex.push_back(-1);
+        }
+
+        SendMessage(g_hListBox, LB_ADDSTRING, 0, (LPARAM)info.GetDisplayText().c_str());
+        g_listBoxToFatturaIndex.push_back((int)i);
+    }
+
+    // Imposta altezza variabile degli elementi
+    int itemCount = (int)SendMessage(g_hListBox, LB_GETCOUNT, 0, 0);
+    for (int idx = 0; idx < itemCount; ++idx)
+    {
+        int mapIdx = (idx < (int)g_listBoxToFatturaIndex.size()) ? g_listBoxToFatturaIndex[idx] : -1;
+        SendMessage(g_hListBox, LB_SETITEMHEIGHT, (WPARAM)idx,
+            (LPARAM)(mapIdx == -1 ? 36 : 72));
+    }
+
+    // Aggiorna la status bar con il conteggio filtrato
+    if (g_hStatusBar)
+    {
+        if (hasFilter)
+        {
+            std::wstring msg = std::to_wstring(matchCount) + L" di " +
+                std::to_wstring(g_fattureInfo.size()) + L" fatture";
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)msg.c_str());
+        }
+        else
+        {
+            std::wstring msg = std::to_wstring(g_fattureInfo.size()) + L" fatture caricate";
+            SendMessage(g_hStatusBar, SB_SETTEXT, 0, (LPARAM)msg.c_str());
         }
     }
 }
@@ -2250,7 +2499,251 @@ void OnPrintAll(HWND hWnd)
     }
 }
 
-    HWND CreateToolbar(HWND hParent, HINSTANCE hInst)
+    // Crea un'icona badge moderna: rettangolo arrotondato con gradiente, bordo e ombra testo
+static HICON CreateBadgeIcon(int size, COLORREF bgColor, const wchar_t* text)
+{
+    HDC hScreenDC = GetDC(NULL);
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = size;
+    bmi.bmiHeader.biHeight = size; // bottom-up per CreateIconIndirect
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+
+    DWORD* pBits = NULL;
+    HBITMAP hColor = CreateDIBSection(hScreenDC, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+    if (!hColor) { ReleaseDC(NULL, hScreenDC); return NULL; }
+
+    HDC hMemDC = CreateCompatibleDC(hScreenDC);
+    HBITMAP hOldBmp = (HBITMAP)SelectObject(hMemDC, hColor);
+    memset(pBits, 0, size * size * 4);
+
+    int rBase = GetRValue(bgColor);
+    int gBase = GetGValue(bgColor);
+    int bBase = GetBValue(bgColor);
+
+    // Forma: rettangolo arrotondato stile squircle moderno (Windows 11)
+    int margin = 2;
+    int cornerRadius = size / 5;
+
+    // Gradiente verticale clippato alla forma arrotondata (chiaro in alto, scuro in basso)
+    HRGN hRgn = CreateRoundRectRgn(margin, margin, size - margin + 1, size - margin + 1,
+                                     cornerRadius * 2, cornerRadius * 2);
+    SelectClipRgn(hMemDC, hRgn);
+
+    TRIVERTEX vert[2] = {};
+    vert[0].x = 0;
+    vert[0].y = 0;
+    vert[0].Red   = (USHORT)(min(255, rBase + 40) << 8);
+    vert[0].Green = (USHORT)(min(255, gBase + 40) << 8);
+    vert[0].Blue  = (USHORT)(min(255, bBase + 40) << 8);
+    vert[1].x = size;
+    vert[1].y = size;
+    vert[1].Red   = (USHORT)(max(0, rBase - 25) << 8);
+    vert[1].Green = (USHORT)(max(0, gBase - 25) << 8);
+    vert[1].Blue  = (USHORT)(max(0, bBase - 25) << 8);
+    GRADIENT_RECT gRect = { 0, 1 };
+    GradientFill(hMemDC, vert, 2, &gRect, 1, GRADIENT_FILL_RECT_V);
+
+    SelectClipRgn(hMemDC, NULL);
+    DeleteObject(hRgn);
+
+    // Bordo sottile più scuro per definizione
+    HBRUSH hOldBr = (HBRUSH)SelectObject(hMemDC, GetStockObject(NULL_BRUSH));
+    HPEN hBorderPen = CreatePen(PS_SOLID, 1,
+        RGB(max(0, rBase - 50), max(0, gBase - 50), max(0, bBase - 50)));
+    HPEN hOldPn = (HPEN)SelectObject(hMemDC, hBorderPen);
+    RoundRect(hMemDC, margin, margin, size - margin, size - margin,
+              cornerRadius * 2, cornerRadius * 2);
+    SelectObject(hMemDC, hOldPn);
+    SelectObject(hMemDC, hOldBr);
+    DeleteObject(hBorderPen);
+
+    // Lettera con ombra sottile per profondità
+    SetBkMode(hMemDC, TRANSPARENT);
+    int textLen = lstrlenW(text);
+    int fontSize = (textLen > 1) ? -(size * 3 / 8) : -(size * 5 / 8);
+    HFONT hFont = CreateFontW(fontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT hOldFont = (HFONT)SelectObject(hMemDC, hFont);
+
+    // Ombra della lettera (1px offset in basso a destra)
+    SetTextColor(hMemDC, RGB(max(0, rBase - 70), max(0, gBase - 70), max(0, bBase - 70)));
+    RECT rcShadow = { 1, 1, size + 1, size + 1 };
+    DrawTextW(hMemDC, text, -1, &rcShadow, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    // Lettera bianca
+    SetTextColor(hMemDC, RGB(255, 255, 255));
+    RECT rc = { 0, 0, size, size };
+    DrawTextW(hMemDC, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    SelectObject(hMemDC, hOldFont);
+    DeleteObject(hFont);
+
+    SelectObject(hMemDC, hOldBmp);
+    DeleteDC(hMemDC);
+
+    // Imposta alpha a 255 per i pixel disegnati (pre-multiplied alpha)
+    for (int i = 0; i < size * size; i++)
+    {
+        if (pBits[i] & 0x00FFFFFF)
+            pBits[i] |= 0xFF000000;
+    }
+
+    // Maschera monocromatica (tutto nero = completamente opaco)
+    HBITMAP hMask = CreateBitmap(size, size, 1, 1, NULL);
+    HDC hMaskDC = CreateCompatibleDC(hScreenDC);
+    HBITMAP hOldMask = (HBITMAP)SelectObject(hMaskDC, hMask);
+    RECT rcMask = { 0, 0, size, size };
+    FillRect(hMaskDC, &rcMask, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    SelectObject(hMaskDC, hOldMask);
+    DeleteDC(hMaskDC);
+    ReleaseDC(NULL, hScreenDC);
+
+    ICONINFO ii = {};
+    ii.fIcon = TRUE;
+    ii.hbmColor = hColor;
+    ii.hbmMask = hMask;
+    HICON hIcon = CreateIconIndirect(&ii);
+
+    DeleteObject(hColor);
+    DeleteObject(hMask);
+    return hIcon;
+}
+
+// Crea un'icona stile documento Office: pagina bianca con fascia colorata a sinistra e lettera
+static HICON CreateDocumentBadgeIcon(int size, COLORREF accentColor, const wchar_t* letter)
+{
+    HDC hScreenDC = GetDC(NULL);
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = size;
+    bmi.bmiHeader.biHeight = size;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+
+    DWORD* pBits = NULL;
+    HBITMAP hColor = CreateDIBSection(hScreenDC, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+    if (!hColor) { ReleaseDC(NULL, hScreenDC); return NULL; }
+
+    HDC hMemDC = CreateCompatibleDC(hScreenDC);
+    HBITMAP hOldBmp = (HBITMAP)SelectObject(hMemDC, hColor);
+    memset(pBits, 0, size * size * 4);
+
+    int rBase = GetRValue(accentColor);
+    int gBase = GetGValue(accentColor);
+    int bBase = GetBValue(accentColor);
+
+    int margin = 1;
+    int stripeW = size * 2 / 5;
+    int foldSize = size / 7;
+
+    // 1. Corpo documento (sfondo bianco/grigio chiaro con bordo sottile)
+    HBRUSH hDocBr = CreateSolidBrush(RGB(250, 250, 254));
+    HPEN hDocPen = CreatePen(PS_SOLID, 1, RGB(195, 200, 212));
+    HBRUSH hOldBr = (HBRUSH)SelectObject(hMemDC, hDocBr);
+    HPEN hOldPn = (HPEN)SelectObject(hMemDC, hDocPen);
+    RoundRect(hMemDC, stripeW - 2, margin, size - margin, size - margin, 2, 2);
+    SelectObject(hMemDC, hOldPn);
+    SelectObject(hMemDC, hOldBr);
+    DeleteObject(hDocPen);
+    DeleteObject(hDocBr);
+
+    // 2. Righe di testo simulate (linee grigie orizzontali)
+    HPEN hLinePen = CreatePen(PS_SOLID, 1, RGB(215, 218, 228));
+    HPEN hOldLinePen = (HPEN)SelectObject(hMemDC, hLinePen);
+    int lineX0 = stripeW + 3;
+    int lineX1 = size - margin - 4;
+    int lineY = margin + foldSize + 4;
+    for (int i = 0; i < 4 && lineY < size - margin - 5; i++)
+    {
+        MoveToEx(hMemDC, lineX0, lineY, NULL);
+        LineTo(hMemDC, lineX1 - (i == 2 ? 5 : 0), lineY);
+        lineY += 5;
+    }
+    SelectObject(hMemDC, hOldLinePen);
+    DeleteObject(hLinePen);
+
+    // 3. Angolo piegato (dog-ear) in alto a destra
+    POINT foldPts[3] = {
+        { size - margin - foldSize, margin },
+        { size - margin,            margin + foldSize },
+        { size - margin - foldSize, margin + foldSize }
+    };
+    HBRUSH hFoldBr = CreateSolidBrush(RGB(230, 232, 242));
+    HPEN hFoldPen = CreatePen(PS_SOLID, 1, RGB(195, 200, 212));
+    SelectObject(hMemDC, hFoldBr);
+    SelectObject(hMemDC, hFoldPen);
+    Polygon(hMemDC, foldPts, 3);
+    DeleteObject(hFoldBr);
+    DeleteObject(hFoldPen);
+
+    // 4. Fascia colorata a sinistra con gradiente
+    HRGN hStripeRgn = CreateRoundRectRgn(margin, margin + 2, stripeW + 1, size - margin - 1, 5, 5);
+    SelectClipRgn(hMemDC, hStripeRgn);
+
+    TRIVERTEX vert[2] = {};
+    vert[0].x = margin;
+    vert[0].y = margin;
+    vert[0].Red   = (USHORT)(min(255, rBase + 35) << 8);
+    vert[0].Green = (USHORT)(min(255, gBase + 35) << 8);
+    vert[0].Blue  = (USHORT)(min(255, bBase + 35) << 8);
+    vert[1].x = stripeW + 1;
+    vert[1].y = size - margin;
+    vert[1].Red   = (USHORT)(max(0, rBase - 20) << 8);
+    vert[1].Green = (USHORT)(max(0, gBase - 20) << 8);
+    vert[1].Blue  = (USHORT)(max(0, bBase - 20) << 8);
+    GRADIENT_RECT gRect = { 0, 1 };
+    GradientFill(hMemDC, vert, 2, &gRect, 1, GRADIENT_FILL_RECT_V);
+
+    SelectClipRgn(hMemDC, NULL);
+    DeleteObject(hStripeRgn);
+
+    // 5. Lettera bianca sulla fascia colorata
+    SetBkMode(hMemDC, TRANSPARENT);
+    SetTextColor(hMemDC, RGB(255, 255, 255));
+    HFONT hFont = CreateFontW(-(stripeW * 3 / 4), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HFONT hOldFont = (HFONT)SelectObject(hMemDC, hFont);
+    RECT rcLetter = { margin, margin, stripeW + 1, size - margin };
+    DrawTextW(hMemDC, letter, -1, &rcLetter, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hMemDC, hOldFont);
+    DeleteObject(hFont);
+
+    SelectObject(hMemDC, hOldBmp);
+    DeleteDC(hMemDC);
+
+    for (int i = 0; i < size * size; i++)
+    {
+        if (pBits[i] & 0x00FFFFFF)
+            pBits[i] |= 0xFF000000;
+    }
+
+    HBITMAP hMask = CreateBitmap(size, size, 1, 1, NULL);
+    HDC hMaskDC = CreateCompatibleDC(hScreenDC);
+    HBITMAP hOldMask = (HBITMAP)SelectObject(hMaskDC, hMask);
+    RECT rcMask = { 0, 0, size, size };
+    FillRect(hMaskDC, &rcMask, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    SelectObject(hMaskDC, hOldMask);
+    DeleteDC(hMaskDC);
+    ReleaseDC(NULL, hScreenDC);
+
+    ICONINFO ii = {};
+    ii.fIcon = TRUE;
+    ii.hbmColor = hColor;
+    ii.hbmMask = hMask;
+    HICON hIcon = CreateIconIndirect(&ii);
+
+    DeleteObject(hColor);
+    DeleteObject(hMask);
+    return hIcon;
+}
+
+HWND CreateToolbar(HWND hParent, HINSTANCE hInst)
 {
     // Crea la toolbar con stile moderno
     HWND hToolbar = CreateWindowEx(0, TOOLBARCLASSNAME, NULL,
@@ -2261,39 +2754,56 @@ void OnPrintAll(HWND hWnd)
     if (!hToolbar)
         return NULL;
 
-    // Imposta la dimensione dei pulsanti più grande per un aspetto moderno
     SendMessage(hToolbar, TB_BUTTONSTRUCTSIZE, (WPARAM)sizeof(TBBUTTON), 0);
-    SendMessage(hToolbar, TB_SETBITMAPSIZE, 0, MAKELONG(32, 32));
-    SendMessage(hToolbar, TB_SETBUTTONSIZE, 0, MAKELONG(48, 48));  // Pulsanti più grandi
 
-    // Usa icone standard di Windows (versione large per aspetto moderno)
-    TBADDBITMAP tbab;
-    tbab.hInst = HINST_COMMCTRL;
-    tbab.nID = IDB_STD_LARGE_COLOR;
-    SendMessage(hToolbar, TB_ADDBITMAP, 0, (LPARAM)&tbab);
+    // Crea image list 32x32 con supporto alpha per icone moderne
+    const int iconSize = 32;
+    HIMAGELIST hImageList = ImageList_Create(iconSize, iconSize, ILC_COLOR32 | ILC_MASK, 4, 0);
 
-    // Definisci i pulsanti della toolbar con testo moderno
+    // Indice 0: Apri - icona cartella aperta dal sistema (Windows 10/11 nativa)
+    SHSTOCKICONINFO sii = {};
+    sii.cbSize = sizeof(sii);
+    if (SUCCEEDED(SHGetStockIconInfo(SIID_FOLDEROPEN, SHGSI_ICON | SHGSI_LARGEICON, &sii)))
+    {
+        ImageList_AddIcon(hImageList, sii.hIcon);
+        DestroyIcon(sii.hIcon);
+    }
+    else
+    {
+        HICON hFallback = (HICON)LoadImage(NULL, IDI_APPLICATION, IMAGE_ICON, iconSize, iconSize, LR_SHARED);
+        ImageList_AddIcon(hImageList, hFallback);
+    }
+
+    // Indice 1: Ministero - icona stile documento Office con fascia blu e "M"
+    HICON hIconM = CreateDocumentBadgeIcon(iconSize, RGB(0, 80, 164), L"M");
+    if (hIconM) { ImageList_AddIcon(hImageList, hIconM); DestroyIcon(hIconM); }
+
+    // Indice 2: Assosoftware - icona stile documento Office con fascia verde e "A"
+    HICON hIconA = CreateDocumentBadgeIcon(iconSize, RGB(46, 139, 87), L"A");
+    if (hIconA) { ImageList_AddIcon(hImageList, hIconA); DestroyIcon(hIconA); }
+
+    // Indice 3: Stampa PDF - badge rosso con "PDF"
+    HICON hIconPdf = CreateBadgeIcon(iconSize, RGB(200, 35, 30), L"PDF");
+    if (hIconPdf) { ImageList_AddIcon(hImageList, hIconPdf); DestroyIcon(hIconPdf); }
+
+    SendMessage(hToolbar, TB_SETIMAGELIST, 0, (LPARAM)hImageList);
+    SendMessage(hToolbar, TB_SETBUTTONSIZE, 0, MAKELONG(48, 48));
+
+    // Pulsanti con indici image list (0=Apri, 1=Ministero, 2=Assosoftware, 3=Stampa)
     TBBUTTON tbb[] = {
-        {STD_FILEOPEN, IDM_OPEN_ZIP, TBSTATE_ENABLED, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Apri"},
+        {0, IDM_OPEN_ZIP, TBSTATE_ENABLED, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Apri"},
         {0, 0, TBSTATE_ENABLED, BTNS_SEP, {0}, 0, 0},
-        {STD_PROPERTIES, IDM_APPLY_MINISTERO, 0, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Ministero"},
-        {STD_PROPERTIES, IDM_APPLY_ASSOSOFTWARE, 0, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Assosoftware"},
+        {1, IDM_APPLY_MINISTERO, 0, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Ministero"},
+        {2, IDM_APPLY_ASSOSOFTWARE, 0, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Assosoftware"},
         {0, 0, TBSTATE_ENABLED, BTNS_SEP, {0}, 0, 0},
-        {STD_PRINT, IDM_PRINT_SELECTED, TBSTATE_ENABLED, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Stampa PDF"},
+        {3, IDM_PRINT_SELECTED, TBSTATE_ENABLED, BTNS_AUTOSIZE | BTNS_SHOWTEXT, {0}, 0, (INT_PTR)L"Stampa PDF"},
     };
 
     SendMessage(hToolbar, TB_ADDBUTTONS, sizeof(tbb) / sizeof(TBBUTTON), (LPARAM)&tbb);
     SendMessage(hToolbar, TB_AUTOSIZE, 0, 0);
 
-    // Aggiungi padding sinistro per centrare meglio la toolbar
-    RECT rcToolbar;
-    GetWindowRect(hToolbar, &rcToolbar);
-    int toolbarWidth = rcToolbar.right - rcToolbar.left;
-    int leftPadding = 20; // Sposta 20 pixel a destra
-
-    // Riposiziona la toolbar con offset sinistro
-    SetWindowPos(hToolbar, NULL, leftPadding, 0, toolbarWidth, 0, 
-        SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
+    // Padding sinistro per allineamento
+    SetWindowPos(hToolbar, NULL, 20, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
 
     return hToolbar;
 }

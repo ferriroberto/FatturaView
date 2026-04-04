@@ -60,6 +60,7 @@
 #define IDC_SIGN_LOCATION		1013
 #define IDC_SIGN_CONTACT		1014
 #define IDC_ABOUT_SYSLINK		1015
+#define IDC_SEARCH_EDIT			1016
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif

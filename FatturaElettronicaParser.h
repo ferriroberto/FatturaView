@@ -94,8 +94,12 @@ public:
 private:
     IXMLDOMDocument2* m_pXmlDoc;
     IXMLDOMDocument2* m_pXslDoc;
+    std::wstring m_lastTempXmlPath; // Traccia l'ultimo file temporaneo per la pulizia
 
     bool InitializeCOM();
     void CleanupCOM();
     std::wstring GetNodeText(IXMLDOMDocument2* pDoc, const std::wstring& xpath);
+    std::wstring DecodeP7M(const std::wstring& p7mPath);
+    bool LoadXmlFileIntoDoc(const std::wstring& xmlPath, IXMLDOMDocument2* pDoc);
 };
+

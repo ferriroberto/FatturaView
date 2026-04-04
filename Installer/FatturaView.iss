@@ -2,14 +2,14 @@
 ;  FatturaView - Script di installazione Inno Setup
 ;  Applicazione: Visualizzatore Fatture Elettroniche
 ;  Autore: Roberto Ferri
-;  Versione: 1.0.0
+;  Versione: 1.2.0
 ; ===========================================================================
 
 #define AppName        "FatturaView"
 #define AppFullName    "FatturaView - Visualizzatore Fatture Elettroniche"
-#define AppVersion     "1.0.0"
+#define AppVersion     "1.2.0"
 #define AppPublisher   "Roberto Ferri"
-#define AppURL         "https://www.fatturaview.it"
+#define AppURL         "https://github.com/ferriroberto/FatturaView"
 #define AppExeName     "FatturaView.exe"
 #define AppGUID        "{{55618536-2590-4AD9-ADA8-DEE56FFBB9EE}"
 
@@ -53,16 +53,12 @@ LZMAUseSeparateProcess=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
-; Firma digitale dell'installer (richiede signtool.exe nel PATH o percorso completo)
-; Decommenta e configura dopo aver ottenuto un certificato code-signing
-; SignTool=standard sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /f "C:\Cert\MyCert.pfx" /p "PASSWORD" $f
-
 ; Wizard
 WizardStyle=modern
 WizardResizable=no
 
-; Licenza e informazioni
-; LicenseFile={#SourceDir}\LICENSE.txt
+; Licenza e informazioni (mostrata durante il wizard)
+LicenseFile={#SourceDir}\LICENSE
 
 ; Abilita la pagina di selezione componenti
 DisableProgramGroupPage=no
@@ -70,6 +66,7 @@ DisableProgramGroupPage=no
 ; Aggiunge voce in "Programmi e funzionalità"
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppFullName}
+ChangesAssociations=yes
 
 ; Lingua predefinita
 ShowLanguageDialog=auto
@@ -77,6 +74,8 @@ ShowLanguageDialog=auto
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
+
+; [Registry] rimosse associazioni file come richiesto dall'utente
 
 ; ===========================================================================
 ;  FILE DA INSTALLARE
@@ -88,22 +87,28 @@ Source: "{#BuildDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; Fogli di stile XSL (obbligatori per la visualizzazione)
 Source: "{#SourceDir}\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Documentazione (opzionale)
-Source: "{#SourceDir}\README.md";             DestDir: "{app}\Doc"; Flags: ignoreversion; Components: docs
-Source: "{#SourceDir}\GUIDA_USO.md";          DestDir: "{app}\Doc"; Flags: ignoreversion; Components: docs
-Source: "{#SourceDir}\TROUBLESHOOTING.md";    DestDir: "{app}\Doc"; Flags: ignoreversion; Components: docs
-Source: "{#SourceDir}\GUIDA_FIRMA_DIGITALE.md"; DestDir: "{app}\Doc"; Flags: ignoreversion; Components: docs
+; Documentazione 
+Source: "{#SourceDir}\README.md";             DestDir: "{app}\Doc"; Flags: ignoreversion skipifsourcedoesntexist; Components: docs
 
-; Visual C++ 2022 Redistributable x64 (include nella cartella Installer\Redist)
-; Scaricalo da: https://aka.ms/vs/18/release/vc_redist.x64.exe
-; Source: "Redist\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Components: vcredist
+; Visual C++ 2022 Redistributable x64
+Source: "Redist\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Components: vcredist
+
+; ===========================================================================
+;  ESECUZIONE POST-INSTALLAZIONE
+; ===========================================================================
+[Run]
+; Installa VC++ Redistributable silenziosamente se non già presente
+Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installazione Visual C++ Redistributable..."; Flags: waituntilterminated skipifdoesntexist; Check: not VCRedistInstalled; Components: vcredist
+
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram, {#AppName}}"; Flags: nowait postinstall skipifsilent
 
 ; ===========================================================================
 ;  COMPONENTI SELEZIONABILI
 ; ===========================================================================
 [Components]
-Name: "main";    Description: "Applicazione principale (obbligatorio)"; Types: full compact custom; Flags: fixed
-Name: "docs";    Description: "Documentazione (README, Guide)";         Types: full
+Name: "main";      Description: "Applicazione principale (obbligatorio)"; Types: full compact custom; Flags: fixed
+Name: "vcredist"; Description: "Microsoft Visual C++ Redistributable";  Types: full compact custom; Flags: fixed
+Name: "docs";      Description: "Documentazione (README, Guide)";         Types: full
 
 ; ===========================================================================
 ;  CARTELLE DA CREARE
@@ -129,8 +134,6 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
-; (associazioni file rimosse)
-
 ; ===========================================================================
 ;  CODICE PASCAL - CONTROLLO VC++ REDISTRIBUTABLE
 ; ===========================================================================
@@ -154,7 +157,7 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
-// Prima dell'installazione: avvisa se manca il VC++ Redistributable
+// Prima dell'installazione: informa se il VC++ Redistributable verrà installato
 // ---------------------------------------------------------------------------
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
@@ -162,13 +165,9 @@ begin
   if not VCRedistInstalled() then
   begin
     MsgBox(
-      'ATTENZIONE: Visual C++ 2022 Redistributable (x64) non rilevato.' + #13#10
+      'Visual C++ 2022 Redistributable (x64) non rilevato.' + #13#10
       + #13#10
-      + 'L''applicazione potrebbe non avviarsi correttamente.' + #13#10
-      + 'Scarica e installa il redistributable da:' + #13#10
-      + 'https://aka.ms/vs/18/release/vc_redist.x64.exe' + #13#10
-      + #13#10
-      + 'L''installazione continuera'' comunque.',
+      + 'Verrà installato automaticamente durante il setup.',
       mbInformation,
       MB_OK
     );
