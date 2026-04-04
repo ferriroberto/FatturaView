@@ -28,6 +28,7 @@
 #define IDD_PDF_SIGN_CONFIG			125
 #define IDM_SHOW_LICENSE          130
 #define IDD_LICENSE_DIALOG        140
+#define IDM_CHECK_UPDATES         131
 
 // Menu contestuale ListBox
 #define IDM_CONTEXT_PRINT_SELECTED  126

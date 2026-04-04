@@ -6,6 +6,7 @@
 #include "FatturaElettronicaParser.h"
 #include "FatturaViewer.h"
 #include "PdfSigner.h"
+#include "AutoUpdater.h"
 #include <commdlg.h>
 #include <shellapi.h>
 #include <vector>
@@ -73,11 +74,14 @@ HWND g_hBtnZoomOut = NULL;                      // Pulsante zoom out
 HWND g_hLabelZoom = NULL;                       // Etichetta percentuale zoom
 int  g_zoomLevel = 100;                         // Livello zoom corrente (50-200)
 #define NAV_BAR_HEIGHT 40                        // Altezza barra navigazione sotto il browser
-#define SEARCH_BAR_HEIGHT 28                     // Altezza casella di ricerca
+#define SEARCH_BAR_HEIGHT 36                     // Altezza casella di ricerca (più visibile)
 HFONT g_hFontNormal = NULL;                     // Font normale per ListBox
 HFONT g_hFontBold = NULL;                       // Font grassetto per intestazioni
 HWND g_hSearchEdit = NULL;                      // Casella di ricerca per filtrare le fatture
 std::wstring g_searchFilter;                    // Testo del filtro di ricerca corrente
+HBRUSH g_hBrushDialogBg = NULL;                 // Brush sfondo dialog personalizzato
+HBRUSH g_hBrushEditBg = NULL;                   // Brush sfondo edit/search personalizzato
+HFONT g_hFontSearch = NULL;                     // Font più grande per la barra di ricerca
 
 #define APP_VERSION L"1.2.0"
 #define APP_AUTHOR L"Roberto Ferri"
@@ -259,7 +263,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_XMLREAD));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = CreateSolidBrush(RGB(250, 250, 250)); // Sfondo chiaro
+    wcex.hbrBackground  = CreateSolidBrush(RGB(248, 250, 252)); // Sfondo Slate 50
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_XMLREAD);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
@@ -304,12 +308,23 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
       L"Segoe UI");
 
+   // Font più grande per la barra di ricerca
+   g_hFontSearch = CreateFont(
+      22, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+      CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+      L"Segoe UI");
+
+   // Brush personalizzati per i controlli
+   g_hBrushDialogBg = CreateSolidBrush(RGB(248, 250, 252));  // Slate 50
+   g_hBrushEditBg = CreateSolidBrush(RGB(255, 255, 255));    // Bianco
+
    // Crea la toolbar
    g_hToolbar = CreateToolbar(hWnd, hInstance);
 
    // Replace application icon with transparent background version if possible
    // The actual implementation is in a separate helper to avoid defining functions inside wWinMain
-   HICON hAppIcon = CreateIconWithTransparentBackground(hInstance, IDI_XMLREAD, RGB(0, 120, 215));
+   HICON hAppIcon = CreateIconWithTransparentBackground(hInstance, IDI_XMLREAD, RGB(99, 102, 241));
    if (hAppIcon)
    {
        SendMessageW(hWnd, WM_SETICON, ICON_BIG, (LPARAM)hAppIcon);
@@ -351,28 +366,27 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    int margin = 20;  // Margine uniforme per design allineato
    int topOffset = TOOLBAR_HEIGHT + margin;
 
-   // Crea la casella di ricerca per filtrare le fatture
-   g_hSearchEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
+   // Crea la casella di ricerca per filtrare le fatture (stile web, senza bordo 3D)
+   g_hSearchEdit = CreateWindowExW(0, L"EDIT", NULL,
       WS_CHILD | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
-      margin, topOffset,
-      leftPanelWidth, SEARCH_BAR_HEIGHT,
+      margin + 1, topOffset + 1,
+      leftPanelWidth - 2, SEARCH_BAR_HEIGHT - 2,
       hWnd, (HMENU)IDC_SEARCH_EDIT, hInstance, NULL);
    if (g_hSearchEdit)
    {
-      if (g_hFontNormal)
-          SendMessage(g_hSearchEdit, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
-      SendMessage(g_hSearchEdit, EM_SETCUEBANNER, TRUE, (LPARAM)L"Cerca fattura (emittente, numero, cliente, importo...)");
+      if (g_hFontSearch)
+          SendMessage(g_hSearchEdit, WM_SETFONT, (WPARAM)g_hFontSearch, TRUE);
+      SendMessage(g_hSearchEdit, EM_SETCUEBANNER, TRUE, (LPARAM)L"\U0001F50D  Cerca fattura (emittente, numero, cliente, importo...)");
    }
 
    int listTopOffset = topOffset + SEARCH_BAR_HEIGHT + 4;
 
-   // Crea una ListBox per mostrare le fatture (pannello sinistro) con selezione multipla
-   // Usa LBS_OWNERDRAWFIXED per disegnare manualmente gli elementi con colori
-   g_hListBox = CreateWindowExW(WS_EX_CLIENTEDGE, L"LISTBOX", NULL,
+   // Crea una ListBox per mostrare le fatture (pannello sinistro) - stile web piatto
+   g_hListBox = CreateWindowExW(0, L"LISTBOX", NULL,
       WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_EXTENDEDSEL | LBS_OWNERDRAWVARIABLE | LBS_HASSTRINGS,
-      margin, listTopOffset,  // Allineato con la toolbar (20px dal bordo)
-      leftPanelWidth, 
-      rcClient.bottom - listTopOffset - margin - statusHeight,
+      margin + 1, listTopOffset + 1,
+      leftPanelWidth - 2, 
+      rcClient.bottom - listTopOffset - margin - statusHeight - 2,
       hWnd, (HMENU)IDC_LISTBOX_FATTURE, hInstance, NULL);
 
    // Per owner-draw variabile impostiamo altezza per singolo elemento dinamicamente
@@ -420,23 +434,23 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    int navY = topOffset + browserHeight + (NAV_BAR_HEIGHT - 30) / 2;
    int navBaseX = leftPanelWidth + 2 * margin + (browserWidth - 396) / 2;
    g_hBtnPrev = CreateWindowExW(0, L"BUTTON", L"\u25C4 Fattura Prec",
-      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED,
+      WS_CHILD | WS_VISIBLE | BS_OWNERDRAW | WS_DISABLED,
       navBaseX, navY, 125, 30,
       hWnd, (HMENU)IDM_PREV_FATTURA, hInstance, NULL);
    g_hBtnNext = CreateWindowExW(0, L"BUTTON", L"Fattura Succ \u25BA",
-      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED,
+      WS_CHILD | WS_VISIBLE | BS_OWNERDRAW | WS_DISABLED,
       navBaseX + 135, navY, 125, 30,
       hWnd, (HMENU)IDM_NEXT_FATTURA, hInstance, NULL);
    g_hBtnZoomOut = CreateWindowExW(0, L"BUTTON", L"\u2212",
-      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+      WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
       navBaseX + 275, navY, 28, 30,
       hWnd, (HMENU)IDM_ZOOM_OUT, hInstance, NULL);
-   g_hLabelZoom = CreateWindowExW(WS_EX_CLIENTEDGE, L"STATIC", L"100%",
+   g_hLabelZoom = CreateWindowExW(0, L"STATIC", L"100%",
       WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
       navBaseX + 308, navY, 55, 30,
       hWnd, (HMENU)IDC_ZOOM_LABEL, hInstance, NULL);
    g_hBtnZoomIn = CreateWindowExW(0, L"BUTTON", L"+",
-      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+      WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
       navBaseX + 368, navY, 28, 30,
       hWnd, (HMENU)IDM_ZOOM_IN, hInstance, NULL);
 
@@ -463,6 +477,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    // Applica tema moderno Windows 11
    ApplyModernWindowTheme(hWnd);
+
+   // Controlla aggiornamenti in background all'avvio
+   AutoUpdater::CheckInBackground(hWnd, APP_VERSION);
 
    ShowWindow(hWnd, SW_SHOWMAXIMIZED);
    UpdateWindow(hWnd);
@@ -517,21 +534,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (isEmptyLine)
                 {
                     // Riga vuota di separazione
-                    clrBackground = RGB(245, 245, 245);
+                    clrBackground = RGB(243, 244, 246);
                     clrText = RGB(0, 0, 0);
                     hFont = g_hFontNormal;
                 }
                 else if (isHeader)
                 {
-                    // Intestazione emittente - Blu Windows 11
+                    // Intestazione emittente - Indigo brand
                     if (pDIS->itemState & ODS_SELECTED)
                     {
-                        clrBackground = RGB(0, 90, 158);  // Blu scuro se selezionato
+                        clrBackground = RGB(79, 70, 229);   // Indigo 600
                         clrText = RGB(255, 255, 255);
                     }
                     else
                     {
-                        clrBackground = RGB(0, 120, 215);  // Blu Windows 11
+                        clrBackground = RGB(99, 102, 241);  // Indigo 500
                         clrText = RGB(255, 255, 255);
                     }
                     hFont = g_hFontBold;
@@ -541,15 +558,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     // Fattura normale - Effetto card
                     if (pDIS->itemState & ODS_SELECTED)
                     {
-                        // Selezionato - Azzurro chiaro
-                        clrBackground = RGB(204, 230, 255);
-                        clrText = RGB(0, 0, 0);
+                        // Selezionato - Indigo chiaro
+                        clrBackground = RGB(224, 231, 255);
+                        clrText = RGB(30, 41, 59);
                     }
                     else
                     {
-                        // Alternanza bianco/grigio chiaro
-                        clrBackground = (pDIS->itemID % 2 == 0) ? RGB(255, 255, 255) : RGB(248, 251, 255);
-                        clrText = RGB(32, 32, 32);
+                        // Alternanza bianco/lavanda
+                        clrBackground = (pDIS->itemID % 2 == 0) ? RGB(255, 255, 255) : RGB(248, 247, 254);
+                        clrText = RGB(30, 41, 59);
                     }
                     hFont = g_hFontNormal;
                 }
@@ -557,20 +574,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 // Disegna lo sfondo con gradiente per le intestazioni
                 if (isHeader && !(pDIS->itemState & ODS_SELECTED))
                 {
-                    // Crea un gradiente orizzontale blu per le intestazioni
+                    // Crea un gradiente orizzontale indigo->viola per le intestazioni
                     TRIVERTEX vertex[2];
                     vertex[0].x = pDIS->rcItem.left;
                     vertex[0].y = pDIS->rcItem.top;
-                    vertex[0].Red = 0x0000;      // RGB(0, 120, 215)
-                    vertex[0].Green = 0x7800;
-                    vertex[0].Blue = 0xD700;
+                    vertex[0].Red = 0x6300;      // RGB(99, 102, 241) - Indigo
+                    vertex[0].Green = 0x6600;
+                    vertex[0].Blue = 0xF100;
                     vertex[0].Alpha = 0x0000;
 
                     vertex[1].x = pDIS->rcItem.right;
                     vertex[1].y = pDIS->rcItem.bottom;
-                    vertex[1].Red = 0x0000;      // RGB(0, 90, 158)
-                    vertex[1].Green = 0x5A00;
-                    vertex[1].Blue = 0x9E00;
+                    vertex[1].Red = 0xA800;      // RGB(168, 85, 247) - Viola
+                    vertex[1].Green = 0x5500;
+                    vertex[1].Blue = 0xF700;
                     vertex[1].Alpha = 0x0000;
 
                     GRADIENT_RECT gRect;
@@ -588,7 +605,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     // Aggiungi sottile linea di separazione inferiore per effetto card (solo fatture)
                     if (!isEmptyLine && !isHeader)
                     {
-                        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(230, 230, 230));
+                        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(226, 232, 240));
                         HPEN hOldPen = (HPEN)SelectObject(pDIS->hDC, hPen);
                         MoveToEx(pDIS->hDC, pDIS->rcItem.left + 8, pDIS->rcItem.bottom - 1, NULL);
                         LineTo(pDIS->hDC, pDIS->rcItem.right - 8, pDIS->rcItem.bottom - 1);
@@ -597,12 +614,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     }
                 }
 
-                // Disegna bordo focus con colore blu
+                // Disegna bordo focus con colore indigo
                 if (pDIS->itemState & ODS_FOCUS)
                 {
                     RECT rcFocus = pDIS->rcItem;
                     InflateRect(&rcFocus, -2, -2);
-                    HPEN hPenFocus = CreatePen(PS_SOLID, 2, RGB(0, 120, 215));
+                    HPEN hPenFocus = CreatePen(PS_SOLID, 2, RGB(99, 102, 241));
                     HPEN hOldPen = (HPEN)SelectObject(pDIS->hDC, hPenFocus);
                     HBRUSH hOldBrush = (HBRUSH)SelectObject(pDIS->hDC, GetStockObject(NULL_BRUSH));
                     Rectangle(pDIS->hDC, rcFocus.left, rcFocus.top, rcFocus.right, rcFocus.bottom);
@@ -770,6 +787,124 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 return TRUE;
             }
+
+            // Owner-draw per pulsanti navigazione/zoom stile web
+            if (pDIS->CtlType == ODT_BUTTON)
+            {
+                bool isDisabled = (pDIS->itemState & ODS_DISABLED) != 0;
+                bool isPressed = (pDIS->itemState & ODS_SELECTED) != 0;
+                bool isFocused = (pDIS->itemState & ODS_FOCUS) != 0;
+
+                COLORREF bgColor, textColor, borderColor;
+                int btnId = pDIS->CtlID;
+
+                if (btnId == IDM_PREV_FATTURA || btnId == IDM_NEXT_FATTURA)
+                {
+                    // Pulsanti navigazione: pillola indigo
+                    if (isDisabled)
+                    {
+                        bgColor = RGB(226, 232, 240);    // Slate 200
+                        textColor = RGB(148, 163, 184);  // Slate 400
+                        borderColor = RGB(203, 213, 225);
+                    }
+                    else if (isPressed)
+                    {
+                        bgColor = RGB(67, 56, 202);      // Indigo 700
+                        textColor = RGB(255, 255, 255);
+                        borderColor = RGB(55, 48, 163);
+                    }
+                    else
+                    {
+                        bgColor = RGB(99, 102, 241);     // Indigo 500
+                        textColor = RGB(255, 255, 255);
+                        borderColor = RGB(79, 70, 229);
+                    }
+                }
+                else
+                {
+                    // Pulsanti zoom: pillola grigia
+                    if (isDisabled)
+                    {
+                        bgColor = RGB(241, 245, 249);
+                        textColor = RGB(148, 163, 184);
+                        borderColor = RGB(226, 232, 240);
+                    }
+                    else if (isPressed)
+                    {
+                        bgColor = RGB(203, 213, 225);
+                        textColor = RGB(30, 41, 59);
+                        borderColor = RGB(148, 163, 184);
+                    }
+                    else
+                    {
+                        bgColor = RGB(241, 245, 249);    // Slate 100
+                        textColor = RGB(30, 41, 59);
+                        borderColor = RGB(203, 213, 225); // Slate 300
+                    }
+                }
+
+                // Sfondo con angoli arrotondati
+                HBRUSH hBg = CreateSolidBrush(bgColor);
+                HPEN hBorder = CreatePen(PS_SOLID, 1, borderColor);
+                HBRUSH hOldBr = (HBRUSH)SelectObject(pDIS->hDC, hBg);
+                HPEN hOldPn = (HPEN)SelectObject(pDIS->hDC, hBorder);
+                RoundRect(pDIS->hDC, pDIS->rcItem.left, pDIS->rcItem.top,
+                    pDIS->rcItem.right, pDIS->rcItem.bottom, 12, 12);
+                SelectObject(pDIS->hDC, hOldPn);
+                SelectObject(pDIS->hDC, hOldBr);
+                DeleteObject(hBorder);
+                DeleteObject(hBg);
+
+                // Testo centrato
+                SetBkMode(pDIS->hDC, TRANSPARENT);
+                SetTextColor(pDIS->hDC, textColor);
+                HFONT hOldFont = (HFONT)SelectObject(pDIS->hDC, g_hFontNormal);
+                WCHAR btnText[64] = {};
+                GetWindowTextW(pDIS->hwndItem, btnText, 64);
+                DrawTextW(pDIS->hDC, btnText, -1, &pDIS->rcItem,
+                    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                SelectObject(pDIS->hDC, hOldFont);
+
+                return TRUE;
+            }
+        }
+        break;
+    case WM_NOTIFY:
+        {
+            LPNMHDR pnmh = (LPNMHDR)lParam;
+            // Toolbar custom draw: sfondo piatto stile web
+            if (pnmh->hwndFrom == g_hToolbar && pnmh->code == NM_CUSTOMDRAW)
+            {
+                LPNMTBCUSTOMDRAW pcd = (LPNMTBCUSTOMDRAW)lParam;
+                switch (pcd->nmcd.dwDrawStage)
+                {
+                case CDDS_PREPAINT:
+                    {
+                        // Disegna sfondo toolbar personalizzato
+                        RECT rc;
+                        GetClientRect(g_hToolbar, &rc);
+                        HBRUSH hBr = CreateSolidBrush(RGB(248, 250, 252));
+                        FillRect(pcd->nmcd.hdc, &rc, hBr);
+                        DeleteObject(hBr);
+                        // Linea sottile di separazione inferiore
+                        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(226, 232, 240));
+                        HPEN hOld = (HPEN)SelectObject(pcd->nmcd.hdc, hPen);
+                        MoveToEx(pcd->nmcd.hdc, rc.left, rc.bottom - 1, NULL);
+                        LineTo(pcd->nmcd.hdc, rc.right, rc.bottom - 1);
+                        SelectObject(pcd->nmcd.hdc, hOld);
+                        DeleteObject(hPen);
+                        return CDRF_NOTIFYITEMDRAW;
+                    }
+                case CDDS_ITEMPREPAINT:
+                    {
+                        // Sfondo trasparente per i singoli bottoni
+                        pcd->clrBtnFace = RGB(248, 250, 252);
+                        pcd->clrText = RGB(30, 41, 59);
+                        return TBCDRF_USECDCOLORS;
+                    }
+                }
+                return CDRF_DODEFAULT;
+            }
         }
         break;
     case WM_MOUSEWHEEL:
@@ -827,6 +962,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDM_SHOW_LICENSE:
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_LICENSE_DIALOG), hWnd, LicenseDialogProc);
+                break;
+            case IDM_CHECK_UPDATES:
+                {
+                    HCURSOR hOld = SetCursor(LoadCursor(NULL, IDC_WAIT));
+                    UpdateInfo info;
+                    bool ok = AutoUpdater::CheckForUpdates(APP_VERSION, info);
+                    SetCursor(hOld);
+                    if (ok && info.updateAvailable)
+                        AutoUpdater::ShowUpdateDialog(hWnd, info, APP_VERSION);
+                    else if (ok)
+                        AutoUpdater::ShowNoUpdateDialog(hWnd, APP_VERSION);
+                    else
+                        MessageBoxW(hWnd, L"Impossibile contattare il server.\nVerifica la connessione internet.", L"Errore", MB_OK | MB_ICONWARNING);
+                }
                 break;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
@@ -1070,17 +1219,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             int margin = 20;  // Margine uniforme allineato
             int topOffset = TOOLBAR_HEIGHT + margin;
 
-            // Ridimensiona la toolbar con padding sinistro
+            // Ridimensiona la toolbar a tutta larghezza (stile web nav bar)
             if (g_hToolbar)
             {
-                SendMessage(g_hToolbar, TB_AUTOSIZE, 0, 0);
-
-                // Applica padding sinistro allineato
-                RECT rcToolbar;
-                GetWindowRect(g_hToolbar, &rcToolbar);
-                int toolbarHeight = rcToolbar.bottom - rcToolbar.top;
-                SetWindowPos(g_hToolbar, NULL, margin, 0, 0, toolbarHeight, 
-                    SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
+                SetWindowPos(g_hToolbar, NULL, 0, 0, rcClient.right, TOOLBAR_HEIGHT,
+                    SWP_NOZORDER | SWP_NOACTIVATE);
             }
 
             // Ridimensiona la status bar
@@ -1101,8 +1244,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             if (g_hSearchEdit)
             {
                 MoveWindow(g_hSearchEdit,
-                    margin, topOffset,
-                    leftPanelWidth, SEARCH_BAR_HEIGHT,
+                    margin + 1, topOffset + 1,
+                    leftPanelWidth - 2, SEARCH_BAR_HEIGHT - 2,
                     TRUE);
             }
 
@@ -1111,11 +1254,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             if (g_hListBox)
             {
                 MoveWindow(g_hListBox,
-                    margin, listTopOffset,
-                    leftPanelWidth,
-                    rcClient.bottom - listTopOffset - margin - statusHeight,
+                    margin + 1, listTopOffset + 1,
+                    leftPanelWidth - 2,
+                    rcClient.bottom - listTopOffset - margin - statusHeight - 2,
                     TRUE);
             }
+
+            // Forza ridisegno dei bordi personalizzati
+            InvalidateRect(hWnd, NULL, TRUE);
 
             int browserWidth = rcClient.right - leftPanelWidth - 3 * margin;
             int browserHeight = rcClient.bottom - topOffset - margin - statusHeight - NAV_BAR_HEIGHT;
@@ -1143,10 +1289,62 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 MoveWindow(g_hBtnZoomIn, navBaseX + 368, navY, 28, 30, TRUE);
         }
         break;
+    case WM_CTLCOLOREDIT:
+        {
+            // Personalizza colore del filtro di ricerca
+            HDC hdcEdit = (HDC)wParam;
+            HWND hCtl = (HWND)lParam;
+            if (hCtl == g_hSearchEdit)
+            {
+                SetTextColor(hdcEdit, RGB(30, 41, 59));      // Slate 800
+                SetBkColor(hdcEdit, RGB(255, 255, 255));
+                return (LRESULT)g_hBrushEditBg;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        {
+            // Personalizza label e zoom con sfondo della finestra
+            HDC hdcStatic = (HDC)wParam;
+            SetTextColor(hdcStatic, RGB(30, 41, 59));
+            SetBkColor(hdcStatic, RGB(248, 250, 252));
+            return (LRESULT)g_hBrushDialogBg;
+        }
+        break;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
+
+            // Disegna bordi piatti arrotondati attorno ai controlli (stile web)
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, RGB(199, 210, 254));  // Indigo 200
+            HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
+            HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+            // Bordo attorno alla casella di ricerca
+            if (g_hSearchEdit)
+            {
+                RECT rcEdit;
+                GetWindowRect(g_hSearchEdit, &rcEdit);
+                MapWindowPoints(HWND_DESKTOP, hWnd, (LPPOINT)&rcEdit, 2);
+                InflateRect(&rcEdit, 1, 1);
+                RoundRect(hdc, rcEdit.left, rcEdit.top, rcEdit.right, rcEdit.bottom, 8, 8);
+            }
+
+            // Bordo attorno alla ListBox
+            if (g_hListBox)
+            {
+                RECT rcList;
+                GetWindowRect(g_hListBox, &rcList);
+                MapWindowPoints(HWND_DESKTOP, hWnd, (LPPOINT)&rcList, 2);
+                InflateRect(&rcList, 1, 1);
+                RoundRect(hdc, rcList.left, rcList.top, rcList.right, rcList.bottom, 8, 8);
+            }
+
+            SelectObject(hdc, hOldBrush);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hBorderPen);
+
             EndPaint(hWnd, &ps);
         }
         break;
@@ -1156,9 +1354,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             DeleteObject(g_hFontNormal);
         if (g_hFontBold)
             DeleteObject(g_hFontBold);
+        if (g_hFontSearch)
+            DeleteObject(g_hFontSearch);
+        if (g_hBrushDialogBg)
+            DeleteObject(g_hBrushDialogBg);
+        if (g_hBrushEditBg)
+            DeleteObject(g_hBrushEditBg);
         PostQuitMessage(0);
         break;
     default:
+        // Gestisci notifica aggiornamento disponibile dal thread di background
+        if (message == AutoUpdater::WM_APP_UPDATE_AVAILABLE)
+        {
+            UpdateInfo* pInfo = (UpdateInfo*)lParam;
+            if (pInfo && pInfo->updateAvailable)
+            {
+                AutoUpdater::ShowUpdateDialog(hWnd, *pInfo, APP_VERSION);
+            }
+            return 0;
+        }
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
@@ -1172,6 +1386,17 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     {
     case WM_INITDIALOG:
         return (INT_PTR)TRUE;
+
+    case WM_CTLCOLORDLG:
+    case WM_CTLCOLORSTATIC:
+        {
+            HDC hdcCtl = (HDC)wParam;
+            SetTextColor(hdcCtl, RGB(30, 41, 59));
+            SetBkColor(hdcCtl, RGB(248, 250, 252));
+            if (!g_hBrushDialogBg)
+                g_hBrushDialogBg = CreateSolidBrush(RGB(248, 250, 252));
+            return (INT_PTR)g_hBrushDialogBg;
+        }
 
     case WM_NOTIFY:
     {
@@ -1258,6 +1483,17 @@ INT_PTR CALLBACK StylesheetSelector(HWND hDlg, UINT message, WPARAM wParam, LPAR
             return (INT_PTR)TRUE;
         }
 
+    case WM_CTLCOLORDLG:
+    case WM_CTLCOLORSTATIC:
+        {
+            HDC hdcCtl = (HDC)wParam;
+            SetTextColor(hdcCtl, RGB(30, 41, 59));
+            SetBkColor(hdcCtl, RGB(248, 250, 252));
+            if (!g_hBrushDialogBg)
+                g_hBrushDialogBg = CreateSolidBrush(RGB(248, 250, 252));
+            return (INT_PTR)g_hBrushDialogBg;
+        }
+
     case WM_COMMAND:
         if (LOWORD(wParam) == IDC_STYLESHEET_LIST && HIWORD(wParam) == LBN_SELCHANGE)
         {
@@ -1325,6 +1561,17 @@ INT_PTR CALLBACK PdfSignConfigDialog(HWND hDlg, UINT message, WPARAM wParam, LPA
             SetDlgItemTextW(hDlg, IDC_SIGN_CONTACT, config.signContact.c_str());
 
             return (INT_PTR)TRUE;
+        }
+
+    case WM_CTLCOLORDLG:
+    case WM_CTLCOLORSTATIC:
+        {
+            HDC hdcCtl = (HDC)wParam;
+            SetTextColor(hdcCtl, RGB(30, 41, 59));
+            SetBkColor(hdcCtl, RGB(248, 250, 252));
+            if (!g_hBrushDialogBg)
+                g_hBrushDialogBg = CreateSolidBrush(RGB(248, 250, 252));
+            return (INT_PTR)g_hBrushDialogBg;
         }
 
     case WM_COMMAND:
@@ -2523,7 +2770,7 @@ static HICON CreateBadgeIcon(int size, COLORREF bgColor, const wchar_t* text)
     int gBase = GetGValue(bgColor);
     int bBase = GetBValue(bgColor);
 
-    // Forma: rettangolo arrotondato stile squircle moderno (Windows 11)
+    // Forma: rettangolo arrotondato stile squircle moderno
     int margin = 2;
     int cornerRadius = size / 5;
 
@@ -2774,16 +3021,16 @@ HWND CreateToolbar(HWND hParent, HINSTANCE hInst)
         ImageList_AddIcon(hImageList, hFallback);
     }
 
-    // Indice 1: Ministero - icona stile documento Office con fascia blu e "M"
-    HICON hIconM = CreateDocumentBadgeIcon(iconSize, RGB(0, 80, 164), L"M");
+    // Indice 1: Ministero - icona stile documento con fascia indigo e "M"
+    HICON hIconM = CreateDocumentBadgeIcon(iconSize, RGB(79, 70, 229), L"M");
     if (hIconM) { ImageList_AddIcon(hImageList, hIconM); DestroyIcon(hIconM); }
 
-    // Indice 2: Assosoftware - icona stile documento Office con fascia verde e "A"
-    HICON hIconA = CreateDocumentBadgeIcon(iconSize, RGB(46, 139, 87), L"A");
+    // Indice 2: Assosoftware - icona stile documento con fascia emerald e "A"
+    HICON hIconA = CreateDocumentBadgeIcon(iconSize, RGB(16, 185, 129), L"A");
     if (hIconA) { ImageList_AddIcon(hImageList, hIconA); DestroyIcon(hIconA); }
 
-    // Indice 3: Stampa PDF - badge rosso con "PDF"
-    HICON hIconPdf = CreateBadgeIcon(iconSize, RGB(200, 35, 30), L"PDF");
+    // Indice 3: Stampa PDF - badge amber/arancio con "PDF"
+    HICON hIconPdf = CreateBadgeIcon(iconSize, RGB(245, 158, 11), L"PDF");
     if (hIconPdf) { ImageList_AddIcon(hImageList, hIconPdf); DestroyIcon(hIconPdf); }
 
     SendMessage(hToolbar, TB_SETIMAGELIST, 0, (LPARAM)hImageList);
@@ -2802,8 +3049,11 @@ HWND CreateToolbar(HWND hParent, HINSTANCE hInst)
     SendMessage(hToolbar, TB_ADDBUTTONS, sizeof(tbb) / sizeof(TBBUTTON), (LPARAM)&tbb);
     SendMessage(hToolbar, TB_AUTOSIZE, 0, 0);
 
-    // Padding sinistro per allineamento
-    SetWindowPos(hToolbar, NULL, 20, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
+    // Imposta la toolbar a tutta larghezza come una web nav bar
+    RECT rcParent;
+    GetClientRect(hParent, &rcParent);
+    SetWindowPos(hToolbar, NULL, 0, 0, rcParent.right, TOOLBAR_HEIGHT,
+        SWP_NOZORDER | SWP_NOACTIVATE);
 
     return hToolbar;
 }
@@ -2939,23 +3189,23 @@ std::wstring GetResourcesPath()
     return g_appPath + L"Resources\\";
 }
 
-// Applica tema moderno Light Mode alla finestra
+// Applica tema moderno con palette Indigo brand alla finestra
 void ApplyModernWindowTheme(HWND hWnd)
 {
     // 1. BORDI ARROTONDATI (Windows 11)
     DWM_WINDOW_CORNER_PREFERENCE cornerPref = DWMWCP_ROUND;
     DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &cornerPref, sizeof(cornerPref));
 
-    // 2. TITLE BAR - Blu Windows 11
-    COLORREF captionColor = RGB(0, 120, 215);  // Blu Accent
+    // 2. TITLE BAR - Indigo brand
+    COLORREF captionColor = RGB(99, 102, 241);  // Indigo 500
     DwmSetWindowAttribute(hWnd, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor));
 
     // 3. TESTO TITLE BAR BIANCO
     COLORREF textColor = RGB(255, 255, 255);
     DwmSetWindowAttribute(hWnd, DWMWA_TEXT_COLOR, &textColor, sizeof(textColor));
 
-    // 4. BORDO - Blu scuro
-    COLORREF borderColor = RGB(0, 90, 158);
+    // 4. BORDO - Indigo scuro
+    COLORREF borderColor = RGB(79, 70, 229);
     DwmSetWindowAttribute(hWnd, DWMWA_BORDER_COLOR, &borderColor, sizeof(borderColor));
 
     // 5. LIGHT MODE ATTIVO
@@ -3174,6 +3424,16 @@ INT_PTR CALLBACK LicenseDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARA
 
         return (INT_PTR)TRUE;
     }
+    case WM_CTLCOLORDLG:
+    case WM_CTLCOLORSTATIC:
+        {
+            HDC hdcCtl = (HDC)wParam;
+            SetTextColor(hdcCtl, RGB(30, 41, 59));
+            SetBkColor(hdcCtl, RGB(248, 250, 252));
+            if (!g_hBrushDialogBg)
+                g_hBrushDialogBg = CreateSolidBrush(RGB(248, 250, 252));
+            return (INT_PTR)g_hBrushDialogBg;
+        }
     case WM_COMMAND:
         if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
         {

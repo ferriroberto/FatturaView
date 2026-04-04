@@ -36,6 +36,9 @@
     <ClInclude Include="FatturaView.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="AutoUpdater.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FatturaElettronicaParser.cpp">
@@ -48,6 +51,9 @@
       <Filter>File di origine</Filter>
     </ClCompile>
     <ClCompile Include="FatturaView.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="AutoUpdater.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
   </ItemGroup>

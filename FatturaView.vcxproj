@@ -131,6 +131,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AutoUpdater.h" />
     <ClInclude Include="FatturaElettronicaParser.h" />
     <ClInclude Include="FatturaViewer.h" />
     <ClInclude Include="PdfSigner.h" />
@@ -140,6 +141,7 @@
     <ClInclude Include="FatturaView.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AutoUpdater.cpp" />
     <ClCompile Include="FatturaElettronicaParser.cpp" />
     <ClCompile Include="FatturaViewer.cpp" />
     <ClCompile Include="PdfSigner.cpp" />
