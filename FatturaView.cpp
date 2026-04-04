@@ -83,7 +83,7 @@ HBRUSH g_hBrushDialogBg = NULL;                 // Brush sfondo dialog personali
 HBRUSH g_hBrushEditBg = NULL;                   // Brush sfondo edit/search personalizzato
 HFONT g_hFontSearch = NULL;                     // Font più grande per la barra di ricerca
 
-#define APP_VERSION L"1.3.0"
+#define APP_VERSION L"1.3.1"
 #define APP_AUTHOR L"Roberto Ferri"
 
 // Costanti per temi Windows 11 (alcune potrebbero non essere definite in vecchie versioni SDK)
