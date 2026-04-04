@@ -83,7 +83,7 @@ HBRUSH g_hBrushDialogBg = NULL;                 // Brush sfondo dialog personali
 HBRUSH g_hBrushEditBg = NULL;                   // Brush sfondo edit/search personalizzato
 HFONT g_hFontSearch = NULL;                     // Font più grande per la barra di ricerca
 
-#define APP_VERSION L"1.3.3"
+#define APP_VERSION L"1.3.4"
 #define APP_AUTHOR L"Roberto Ferri"
 
 // Costanti per temi Windows 11 (alcune potrebbero non essere definite in vecchie versioni SDK)
@@ -1385,6 +1385,10 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
     {
     case WM_INITDIALOG:
+        {
+            std::wstring ver = std::wstring(L"Versione ") + APP_VERSION;
+            SetDlgItemTextW(hDlg, IDC_ABOUT_VERSION, ver.c_str());
+        }
         return (INT_PTR)TRUE;
 
     case WM_CTLCOLORDLG:

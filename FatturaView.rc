@@ -88,7 +88,7 @@ FONT 10, "Segoe UI"
 BEGIN
     ICON            IDI_XMLREAD,IDC_STATIC,18,18,21,20
     LTEXT           "FatturaView - Visualizzatore Fatture Elettroniche",IDC_STATIC,50,14,216,10,SS_NOPREFIX
-    LTEXT           "Versione 1.2.0",IDC_STATIC,50,28,216,10
+    LTEXT           "Versione",IDC_ABOUT_VERSION,50,28,216,10
     LTEXT           "Autore: Roberto Ferri",IDC_STATIC,50,42,216,10
     LTEXT           "Copyright (c) 2026",IDC_STATIC,50,56,216,10
     CONTROL         "<a href=""https://www.fatturaview.it"">www.fatturaview.it</a>",IDC_ABOUT_SYSLINK,"SysLink",WS_CHILD|WS_VISIBLE|WS_TABSTOP,50,72,216,12
