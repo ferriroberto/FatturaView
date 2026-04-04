@@ -2,12 +2,12 @@
 ;  FatturaView - Script di installazione Inno Setup
 ;  Applicazione: Visualizzatore Fatture Elettroniche
 ;  Autore: Roberto Ferri
-;  Versione: 1.3.1
+;  Versione: 1.3.2
 ; ===========================================================================
 
 #define AppName        "FatturaView"
 #define AppFullName    "FatturaView - Visualizzatore Fatture Elettroniche"
-#define AppVersion     "1.3.1"
+#define AppVersion     "1.3.2"
 #define AppPublisher   "Roberto Ferri"
 #define AppURL         "https://github.com/ferriroberto/FatturaView"
 #define AppExeName     "FatturaView.exe"
@@ -64,7 +64,7 @@ LicenseFile={#SourceDir}\LICENSE
 DisableProgramGroupPage=no
 
 ; Aggiunge voce in "Programmi e funzionalità"
-UninstallDisplayIcon={app}\{#AppExeName}
+UninstallDisplayIcon={app}\FatturaView.ico
 UninstallDisplayName={#AppFullName}
 ChangesAssociations=yes
 
@@ -84,6 +84,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; Eseguibile principale
 Source: "{#BuildDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
+; Icona applicazione (usata per i collegamenti)
+Source: "{#SourceDir}\FatturaView.ico"; DestDir: "{app}"; Flags: ignoreversion
+
 ; Fogli di stile XSL (obbligatori per la visualizzazione)
 Source: "{#SourceDir}\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -101,6 +104,9 @@ Source: "Redist\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall;
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installazione Visual C++ Redistributable..."; Flags: waituntilterminated skipifdoesntexist; Check: not VCRedistInstalled; Components: vcredist
 
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram, {#AppName}}"; Flags: nowait postinstall skipifsilent
+
+; Pulisci la cache delle icone di Windows per forzare il refresh
+Filename: "ie4uinit.exe"; Parameters: "-show"; Flags: nowait runhidden; StatusMsg: "Aggiornamento icone..."
 
 ; ===========================================================================
 ;  COMPONENTI SELEZIONABILI
@@ -122,11 +128,11 @@ Name: "{app}\Doc"
 ; ===========================================================================
 [Icons]
 ; Start Menu
-Name: "{group}\{#AppFullName}";        Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"
+Name: "{group}\{#AppFullName}";        Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\FatturaView.ico"
 Name: "{group}\Disinstalla {#AppName}"; Filename: "{uninstallexe}"
 
 ; Desktop (opzionale, l'utente può deselezionarlo)
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\FatturaView.ico"; Tasks: desktopicon
 
 ; ===========================================================================
 ;  TASK OPZIONALI (PAGINA WIZARD)
