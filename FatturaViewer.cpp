@@ -1,14 +1,17 @@
 #include "FatturaViewer.h"
+#include "Resource.h"
 #include <fstream>
 #include <shlwapi.h>
 #include <comdef.h>
 #include <ole2.h>
 #include <exdisp.h>
 #include <shellapi.h>
+#include <wincrypt.h>
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
+#pragma comment(lib, "crypt32.lib")
 
 // Struttura per memorizzare il controllo WebBrowser
 struct BrowserData
@@ -434,7 +437,7 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -446,7 +449,7 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
             backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
             max-width: 90%;
             max-height: 90%;
             overflow-y: auto;
@@ -466,7 +469,7 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
             margin-top: 30px;
         }
         .step {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(59, 130, 246, 0.2);
             padding: 15px;
             margin: 10px 0;
             border-radius: 10px;
@@ -476,8 +479,8 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
             display: inline-block;
             width: 30px;
             height: 30px;
-            background: #fff;
-            color: #667eea;
+            background: #3b82f6;
+            color: #fff;
             border-radius: 50%;
             text-align: center;
             line-height: 30px;
@@ -523,6 +526,31 @@ void FatturaViewer::CreateWelcomePage(const std::wstring& filePath)
 
 std::wstring FatturaViewer::GetWelcomePageHTML()
 {
+    // Carica l'immagine g6.png dalla risorsa embedded e convertila in base64 data URI
+    std::wstring imgDataUri;
+    HRSRC hRes = FindResourceW(GetModuleHandle(NULL), MAKEINTRESOURCEW(IDR_WELCOME_IMAGE), L"PNG");
+    if (hRes)
+    {
+        HGLOBAL hData = LoadResource(GetModuleHandle(NULL), hRes);
+        DWORD dwSize = SizeofResource(GetModuleHandle(NULL), hRes);
+        if (hData && dwSize > 0)
+        {
+            const BYTE* pData = (const BYTE*)LockResource(hData);
+            if (pData)
+            {
+                DWORD dwB64Size = 0;
+                CryptBinaryToStringW(pData, dwSize, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, NULL, &dwB64Size);
+                if (dwB64Size > 0)
+                {
+                    std::wstring b64(dwB64Size, L'\0');
+                    CryptBinaryToStringW(pData, dwSize, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &b64[0], &dwB64Size);
+                    b64.resize(dwB64Size);
+                    imgDataUri = L"data:image/png;base64," + b64;
+                }
+            }
+        }
+    }
+
     std::wstring html;
     html = L"<!DOCTYPE html><html><head>";
     html += L"<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">";
@@ -530,67 +558,56 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     html += L"<title>FatturaView</title><style>";
     html += L"*{margin:0;padding:0;box-sizing:border-box}";
     html += L"html,body{width:100%;height:100%;overflow:hidden;margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif}";
-    html += L"body{background:linear-gradient(135deg,#6366f1 0%,#a855f7 50%,#ec4899 100%);position:relative}";
+    html += L"body{background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);position:relative}";
     html += L"body::before{content:'';position:absolute;inset:0;background:";
-    html += L"radial-gradient(circle at 10% 20%,rgba(255,255,255,0.1) 0%,transparent 50%),";
-    html += L"radial-gradient(circle at 90% 80%,rgba(255,255,255,0.08) 0%,transparent 50%);";
+    html += L"radial-gradient(circle at 10% 20%,rgba(59,130,246,0.15) 0%,transparent 50%),";
+    html += L"radial-gradient(circle at 90% 80%,rgba(37,99,235,0.1) 0%,transparent 50%);";
     html += L"animation:pulse 8s ease-in-out infinite;z-index:0}";
     html += L"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}";
     html += L"@keyframes float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-10px) rotate(2deg)}}";
-    html += L"@keyframes glow{0%,100%{filter:drop-shadow(0 0 12px rgba(16,185,129,0.8))}";
-    html += L"50%{filter:drop-shadow(0 0 20px rgba(16,185,129,1))}}";
     html += L"@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}";
     html += L".wrp{width:100%;height:100%;border:none;border-spacing:0;position:relative;z-index:1}";
     html += L".c{text-align:center;padding:36px 32px;display:inline-block;";
     html += L"background:#ffffff;border-radius:24px;max-width:520px;min-width:420px;";
-    html += L"box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);";
+    html += L"box-shadow:0 25px 50px -12px rgba(0,0,0,0.4);";
     html += L"animation:slideUp 0.6s cubic-bezier(0.34,1.56,0.64,1)}";
-    html += L".i{width:96px;height:96px;margin:0 auto 20px;animation:float 4s ease-in-out infinite}";
-    html += L".ic{animation:glow 2.5s ease-in-out infinite}";
+    html += L".logo{max-width:280px;max-height:120px;margin:0 auto 20px;display:block;animation:float 4s ease-in-out infinite}";
     html += L".hd{margin-bottom:24px}";
-    html += L"h1{font-size:2.2em;margin-bottom:8px;font-weight:bold;color:#6366f1;letter-spacing:-0.03em}";
+    html += L"h1{font-size:2.2em;margin-bottom:8px;font-weight:bold;color:#1d4ed8;letter-spacing:-0.03em}";
     html += L".s{font-size:0.95em;color:#64748b;font-weight:500;margin-bottom:4px}";
     html += L".bg{margin-top:8px;text-align:center}";
     html += L".b{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.75em;";
     html += L"font-weight:bold;margin:0 3px;text-transform:uppercase}";
-    html += L".b1{background:#6366f1;color:#ffffff}";
-    html += L".b2{background:#10b981;color:#ffffff}";
-    html += L".b3{background:#f59e0b;color:#ffffff}";
+    html += L".b1{background:#3b82f6;color:#ffffff}";
+    html += L".b2{background:#16a34a;color:#ffffff}";
+    html += L".b3{background:#d97706;color:#ffffff}";
     html += L".st{background:#f8fafc;padding:14px 16px;margin:12px 0;border-radius:16px;";
     html += L"text-align:left;display:block;transition:all 0.3s ease;border:2px solid #e2e8f0;position:relative}";
-    html += L".st:hover{transform:translateX(6px);box-shadow:0 8px 16px rgba(0,0,0,0.1);border-color:#a5b4fc}";
-    html += L".n{width:32px;height:32px;background:#6366f1;color:#ffffff;border-radius:8px;";
+    html += L".st:hover{transform:translateX(6px);box-shadow:0 8px 16px rgba(0,0,0,0.1);border-color:#93c5fd}";
+    html += L".n{width:32px;height:32px;background:#3b82f6;color:#ffffff;border-radius:8px;";
     html += L"display:inline-block;text-align:center;line-height:32px;font-weight:bold;";
     html += L"margin-right:12px;vertical-align:middle}";
     html += L".st-inner{display:inline-block;vertical-align:middle;width:calc(100% - 50px)}";
     html += L".st b{display:block;margin-bottom:2px;font-size:1.05em;color:#1e293b}";
     html += L".st span.txt{line-height:1.4;color:#64748b;font-size:0.92em}";
     html += L".ft{margin-top:14px;font-size:0.82em;color:#94a3b8}";
-    html += L".ft a{color:#6366f1;text-decoration:none;font-weight:500}";
+    html += L".ft a{color:#3b82f6;text-decoration:none;font-weight:500}";
     html += L".ft a:hover{text-decoration:underline}";
     html += L"</style></head><body>";
     html += L"<table class=\"wrp\"><tr><td align=\"center\" valign=\"middle\">";
     html += L"<div class=\"c\">";
-    html += L"<svg class=\"i\" viewBox=\"0 0 100 100\" xmlns=\"http://www.w3.org/2000/svg\">";
-    html += L"<defs>";
-    html += L"<linearGradient id=\"g1\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">";
-    html += L"<stop offset=\"0%\" style=\"stop-color:#6366f1;stop-opacity:1\"/>";
-    html += L"<stop offset=\"100%\" style=\"stop-color:#a855f7;stop-opacity:1\"/>";
-    htmlGradientEnd:
-    html += L"</linearGradient>";
-    html += L"<filter id=\"sh\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">";
-    html += L"<feDropShadow dx=\"0\" dy=\"6\" stdDeviation=\"8\" flood-opacity=\"0.3\"/>";
-    html += L"</filter>";
-    html += L"</defs>";
-    html += L"<rect x=\"5\" y=\"5\" width=\"90\" height=\"90\" rx=\"12\" fill=\"url(#g1)\" filter=\"url(#sh)\"/>";
-    html += L"<rect x=\"18\" y=\"18\" width=\"64\" height=\"74\" rx=\"4\" fill=\"#ffffff\" opacity=\"0.95\"/>";
-    html += L"<path d=\"M 72 18 L 82 28 L 72 28 Z\" fill=\"#e0e7ff\"/>";
-    html += L"<line x1=\"26\" y1=\"32\" x2=\"72\" y2=\"32\" stroke=\"#6366f1\" stroke-width=\"2.5\"/>";
-    html += L"<line x1=\"26\" y1=\"45\" x2=\"62\" y2=\"45\" stroke=\"#a855f7\" stroke-width=\"2.5\"/>";
-    html += L"<line x1=\"26\" y1=\"58\" x2=\"72\" y2=\"58\" stroke=\"#6366f1\" stroke-width=\"2.5\"/>";
-    html += L"<circle class=\"ic\" cx=\"75\" cy=\"80\" r=\"13\" fill=\"#10b981\"/>";
-    html += L"<polyline points=\"68,80 72,85 82,73\" stroke=\"#ffffff\" stroke-width=\"4\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>";
-    html += L"</svg>";
+
+    // Usa l'immagine g6.png come logo al posto dell'SVG
+    if (!imgDataUri.empty())
+    {
+        html += L"<img class=\"logo\" src=\"" + imgDataUri + L"\" alt=\"FatturaView\">";
+    }
+    else
+    {
+        // Fallback: titolo testuale se la risorsa non è disponibile
+        html += L"<div style=\"font-size:3em;margin-bottom:20px;\">&#128196;</div>";
+    }
+
     html += L"<div class=\"hd\">";
     html += L"<h1>FatturaView</h1>";
     html += L"<p class=\"s\">Visualizzatore Professionale Fatture Elettroniche PA</p>";

@@ -45,6 +45,9 @@
 #define IDR_XSLT_MINISTERO		200
 #define IDR_XSLT_ASSOSOFTWARE	201
 
+// Immagine welcome page
+#define IDR_WELCOME_IMAGE		202
+
 #define IDI_XMLREAD			107
 #define IDI_SMALL				108
 #define IDC_XMLREAD			109

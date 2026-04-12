@@ -2,12 +2,12 @@
 ;  FatturaView - Script di installazione Inno Setup
 ;  Applicazione: Visualizzatore Fatture Elettroniche
 ;  Autore: Roberto Ferri
-;  Versione: 1.3.4
+;  Versione: 1.3.5
 ; ===========================================================================
 
 #define AppName        "FatturaView"
 #define AppFullName    "FatturaView - Visualizzatore Fatture Elettroniche"
-#define AppVersion     "1.3.4"
+#define AppVersion     "1.3.5"
 #define AppPublisher   "Roberto Ferri"
 #define AppURL         "https://github.com/ferriroberto/FatturaView"
 #define AppExeName     "FatturaView.exe"

@@ -30,6 +30,8 @@ LANGUAGE 16, 1
 IDI_XMLREAD       ICON         "FatturaView.ico"
 IDI_SMALL               ICON         "small.ico"
 
+IDR_WELCOME_IMAGE PNG          "g6.png"
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // Menu

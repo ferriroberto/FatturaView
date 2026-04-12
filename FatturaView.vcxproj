@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -151,9 +151,12 @@
     <ResourceCompile Include="FatturaView.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="..\..\..\..\Pictures\Screenshots\Screenshot 2026-04-07 205549.png" />
+    <Image Include="..\..\..\..\Pictures\Screenshots\Screenshot 2026-04-07 205750.png" />
     <Image Include="Installer\small.ico" />
     <Image Include="FatturaView.ico" />
     <Image Include="small.ico" />
+    <Image Include="g6.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CONFIGURAZIONE_FOGLI_STILE.md" />

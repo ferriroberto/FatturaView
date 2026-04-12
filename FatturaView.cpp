@@ -83,7 +83,7 @@ HBRUSH g_hBrushDialogBg = NULL;                 // Brush sfondo dialog personali
 HBRUSH g_hBrushEditBg = NULL;                   // Brush sfondo edit/search personalizzato
 HFONT g_hFontSearch = NULL;                     // Font più grande per la barra di ricerca
 
-#define APP_VERSION L"1.3.4"
+#define APP_VERSION L"1.3.5"
 #define APP_AUTHOR L"Roberto Ferri"
 
 // Costanti per temi Windows 11 (alcune potrebbero non essere definite in vecchie versioni SDK)
@@ -324,7 +324,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    // Replace application icon with transparent background version if possible
    // The actual implementation is in a separate helper to avoid defining functions inside wWinMain
-   HICON hAppIcon = CreateIconWithTransparentBackground(hInstance, IDI_XMLREAD, RGB(99, 102, 241));
+   HICON hAppIcon = CreateIconWithTransparentBackground(hInstance, IDI_XMLREAD, RGB(59, 130, 246));
    if (hAppIcon)
    {
        SendMessageW(hWnd, WM_SETICON, ICON_BIG, (LPARAM)hAppIcon);
@@ -540,15 +540,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
                 else if (isHeader)
                 {
-                    // Intestazione emittente - Indigo brand
+                    // Intestazione emittente - Blue brand
                     if (pDIS->itemState & ODS_SELECTED)
                     {
-                        clrBackground = RGB(79, 70, 229);   // Indigo 600
+                        clrBackground = RGB(37, 99, 235);    // Blue 600
                         clrText = RGB(255, 255, 255);
                     }
                     else
                     {
-                        clrBackground = RGB(99, 102, 241);  // Indigo 500
+                        clrBackground = RGB(59, 130, 246);   // Blue 500
                         clrText = RGB(255, 255, 255);
                     }
                     hFont = g_hFontBold;
@@ -558,14 +558,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     // Fattura normale - Effetto card
                     if (pDIS->itemState & ODS_SELECTED)
                     {
-                        // Selezionato - Indigo chiaro
-                        clrBackground = RGB(224, 231, 255);
+                        // Selezionato - Blue chiaro
+                        clrBackground = RGB(219, 234, 254);
                         clrText = RGB(30, 41, 59);
                     }
                     else
                     {
-                        // Alternanza bianco/lavanda
-                        clrBackground = (pDIS->itemID % 2 == 0) ? RGB(255, 255, 255) : RGB(248, 247, 254);
+                        // Alternanza bianco/azzurro chiaro
+                        clrBackground = (pDIS->itemID % 2 == 0) ? RGB(255, 255, 255) : RGB(248, 250, 255);
                         clrText = RGB(30, 41, 59);
                     }
                     hFont = g_hFontNormal;
@@ -574,20 +574,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 // Disegna lo sfondo con gradiente per le intestazioni
                 if (isHeader && !(pDIS->itemState & ODS_SELECTED))
                 {
-                    // Crea un gradiente orizzontale indigo->viola per le intestazioni
+                    // Crea un gradiente orizzontale blue per le intestazioni
                     TRIVERTEX vertex[2];
                     vertex[0].x = pDIS->rcItem.left;
                     vertex[0].y = pDIS->rcItem.top;
-                    vertex[0].Red = 0x6300;      // RGB(99, 102, 241) - Indigo
-                    vertex[0].Green = 0x6600;
-                    vertex[0].Blue = 0xF100;
+                    vertex[0].Red = 0x3B00;      // RGB(59, 130, 246) - Blue 500
+                    vertex[0].Green = 0x8200;
+                    vertex[0].Blue = 0xF600;
                     vertex[0].Alpha = 0x0000;
 
                     vertex[1].x = pDIS->rcItem.right;
                     vertex[1].y = pDIS->rcItem.bottom;
-                    vertex[1].Red = 0xA800;      // RGB(168, 85, 247) - Viola
-                    vertex[1].Green = 0x5500;
-                    vertex[1].Blue = 0xF700;
+                    vertex[1].Red = 0x1D00;      // RGB(29, 78, 216) - Blue 700
+                    vertex[1].Green = 0x4E00;
+                    vertex[1].Blue = 0xD800;
                     vertex[1].Alpha = 0x0000;
 
                     GRADIENT_RECT gRect;
@@ -614,12 +614,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     }
                 }
 
-                // Disegna bordo focus con colore indigo
+                // Disegna bordo focus con colore blue
                 if (pDIS->itemState & ODS_FOCUS)
                 {
                     RECT rcFocus = pDIS->rcItem;
                     InflateRect(&rcFocus, -2, -2);
-                    HPEN hPenFocus = CreatePen(PS_SOLID, 2, RGB(99, 102, 241));
+                    HPEN hPenFocus = CreatePen(PS_SOLID, 2, RGB(59, 130, 246));
                     HPEN hOldPen = (HPEN)SelectObject(pDIS->hDC, hPenFocus);
                     HBRUSH hOldBrush = (HBRUSH)SelectObject(pDIS->hDC, GetStockObject(NULL_BRUSH));
                     Rectangle(pDIS->hDC, rcFocus.left, rcFocus.top, rcFocus.right, rcFocus.bottom);
@@ -800,7 +800,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 if (btnId == IDM_PREV_FATTURA || btnId == IDM_NEXT_FATTURA)
                 {
-                    // Pulsanti navigazione: pillola indigo
+                    // Pulsanti navigazione: pillola blue
                     if (isDisabled)
                     {
                         bgColor = RGB(226, 232, 240);    // Slate 200
@@ -809,15 +809,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     }
                     else if (isPressed)
                     {
-                        bgColor = RGB(67, 56, 202);      // Indigo 700
+                        bgColor = RGB(29, 78, 216);      // Blue 700
                         textColor = RGB(255, 255, 255);
-                        borderColor = RGB(55, 48, 163);
+                        borderColor = RGB(30, 64, 175);
                     }
                     else
                     {
-                        bgColor = RGB(99, 102, 241);     // Indigo 500
+                        bgColor = RGB(59, 130, 246);     // Blue 500
                         textColor = RGB(255, 255, 255);
-                        borderColor = RGB(79, 70, 229);
+                        borderColor = RGB(37, 99, 235);
                     }
                 }
                 else
@@ -1317,7 +1317,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             HDC hdc = BeginPaint(hWnd, &ps);
 
             // Disegna bordi piatti arrotondati attorno ai controlli (stile web)
-            HPEN hBorderPen = CreatePen(PS_SOLID, 1, RGB(199, 210, 254));  // Indigo 200
+            HPEN hBorderPen = CreatePen(PS_SOLID, 1, RGB(191, 219, 254));  // Blue 200
             HPEN hOldPen = (HPEN)SelectObject(hdc, hBorderPen);
             HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
 
@@ -2188,9 +2188,9 @@ static std::wstring BuildAttachmentsHtml(const std::vector<AllegatoInfo>& allega
     // (restore original behaviour: show paperclip emoji in the HTML view)
     // Align attachments to the left (not centered) so they visually match the invoice list
     html += L"<div style=\"margin:20px 0;max-width:800px;padding:14px 16px;"
-            L"border:2px solid #6366f1;border-radius:10px;"
-            L"font-family:'Segoe UI',Arial,sans-serif;background:#f0f4ff;\">";
-    html += L"<p style=\"margin:0 0 10px 0;font-weight:bold;color:#4f46e5;font-size:1em;\">";
+            L"border:2px solid #3b82f6;border-radius:10px;"
+            L"font-family:'Segoe UI',Arial,sans-serif;background:#eff6ff;\">";
+    html += L"<p style=\"margin:0 0 10px 0;font-weight:bold;color:#2563eb;font-size:1em;\">";
     // Original: use paperclip emoji for the header in the HTML view
     html += L"&#128206; Allegati (" + std::to_wstring(allegati.size()) + L")</p>";
     html += L"<ul style=\"list-style:none;padding:0;margin:0;\">";
@@ -2206,14 +2206,14 @@ static std::wstring BuildAttachmentsHtml(const std::vector<AllegatoInfo>& allega
             else                 url += c;
         }
 
-        html += L"<li style=\"padding:7px 0;border-bottom:1px solid #c7d2fe;\">";
-        html += L"<a href=\"" + url + L"\" style=\"color:#4f46e5;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;\">";
+        html += L"<li style=\"padding:7px 0;border-bottom:1px solid #bfdbfe;\">";
+        html += L"<a href=\"" + url + L"\" style=\"color:#2563eb;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;\">";
         // Use the same paperclip emoji as the header for consistency
         html += L"&#128206; " + att.nomeAttachment + L"</a>";
         if (!att.descrizione.empty())
             html += L" <span style=\"color:#6b7280;font-size:0.9em;\"> - " + att.descrizione + L"</span>";
         if (!att.formato.empty())
-            html += L" <span style=\"background:#e0e7ff;color:#4f46e5;padding:2px 8px;"
+            html += L" <span style=\"background:#dbeafe;color:#2563eb;padding:2px 8px;"
                     L"border-radius:10px;font-size:0.78em;font-weight:600;\">" + att.formato + L"</span>";
         html += L"</li>";
     }
@@ -3025,8 +3025,8 @@ HWND CreateToolbar(HWND hParent, HINSTANCE hInst)
         ImageList_AddIcon(hImageList, hFallback);
     }
 
-    // Indice 1: Ministero - icona stile documento con fascia indigo e "M"
-    HICON hIconM = CreateDocumentBadgeIcon(iconSize, RGB(79, 70, 229), L"M");
+    // Indice 1: Ministero - icona stile documento con fascia blue e "M"
+    HICON hIconM = CreateDocumentBadgeIcon(iconSize, RGB(37, 99, 235), L"M");
     if (hIconM) { ImageList_AddIcon(hImageList, hIconM); DestroyIcon(hIconM); }
 
     // Indice 2: Assosoftware - icona stile documento con fascia emerald e "A"
@@ -3193,23 +3193,23 @@ std::wstring GetResourcesPath()
     return g_appPath + L"Resources\\";
 }
 
-// Applica tema moderno con palette Indigo brand alla finestra
+// Applica tema moderno con palette Blue brand alla finestra
 void ApplyModernWindowTheme(HWND hWnd)
 {
     // 1. BORDI ARROTONDATI (Windows 11)
     DWM_WINDOW_CORNER_PREFERENCE cornerPref = DWMWCP_ROUND;
     DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &cornerPref, sizeof(cornerPref));
 
-    // 2. TITLE BAR - Indigo brand
-    COLORREF captionColor = RGB(99, 102, 241);  // Indigo 500
+    // 2. TITLE BAR - Blue brand
+    COLORREF captionColor = RGB(59, 130, 246);  // Blue 500
     DwmSetWindowAttribute(hWnd, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor));
 
     // 3. TESTO TITLE BAR BIANCO
     COLORREF textColor = RGB(255, 255, 255);
     DwmSetWindowAttribute(hWnd, DWMWA_TEXT_COLOR, &textColor, sizeof(textColor));
 
-    // 4. BORDO - Indigo scuro
-    COLORREF borderColor = RGB(79, 70, 229);
+    // 4. BORDO - Blue scuro
+    COLORREF borderColor = RGB(37, 99, 235);
     DwmSetWindowAttribute(hWnd, DWMWA_BORDER_COLOR, &borderColor, sizeof(borderColor));
 
     // 5. LIGHT MODE ATTIVO
