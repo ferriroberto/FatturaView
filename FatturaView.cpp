@@ -59,7 +59,6 @@ std::vector<std::wstring> g_multipleHtmlFiles;  // File HTML delle fatture in na
 int                 g_currentHtmlIndex = -1;    // Indice fattura corrente nella navigazione
 std::wstring g_extractPath;                     // Percorso di estrazione
 std::wstring g_lastXsltPath;                    // Foglio di stile corrente
-std::wstring g_welcomePath;                     // Percorso file welcome
 std::wstring g_appPath;                         // Percorso della cartella dell'applicazione
 FatturaElettronicaParser* g_pParser = nullptr;  // Parser fatture
 HWND g_hListBox = NULL;                         // ListBox per le fatture
@@ -164,7 +163,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         WCHAR tempDir[MAX_PATH];
         GetTempPathW(MAX_PATH, tempDir);
-        g_welcomePath = std::wstring(tempDir) + L"FatturaView_welcome.html";
+        // Rimuovi eventuali file welcome residui da versioni precedenti
+        std::wstring oldWelcome = std::wstring(tempDir) + L"FatturaView_welcome.html";
+        DeleteFileW(oldWelcome.c_str());
     }
 
 
@@ -944,10 +945,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 if (g_hBrowserWnd)
                 {
-                    if (!g_welcomePath.empty() && GetFileAttributesW(g_welcomePath.c_str()) != INVALID_FILE_ATTRIBUTES)
-                        FatturaViewer::NavigateToHTML(g_hBrowserWnd, g_welcomePath);
-                    else
-                        FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
+                    FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
                 }
             }
         }
@@ -1804,10 +1802,7 @@ void OnOpenPaths(HWND hWnd, const std::vector<std::wstring>& paths)
     UpdateNavButtons();
     if (g_hBrowserWnd)
     {
-        if (!g_welcomePath.empty() && GetFileAttributesW(g_welcomePath.c_str()) != INVALID_FILE_ATTRIBUTES)
-            FatturaViewer::NavigateToHTML(g_hBrowserWnd, g_welcomePath);
-        else
-            FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
+        FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
     }
     if (g_hListBox)
         SendMessage(g_hListBox, LB_RESETCONTENT, 0, 0);
