@@ -82,7 +82,7 @@ HBRUSH g_hBrushDialogBg = NULL;                 // Brush sfondo dialog personali
 HBRUSH g_hBrushEditBg = NULL;                   // Brush sfondo edit/search personalizzato
 HFONT g_hFontSearch = NULL;                     // Font più grande per la barra di ricerca
 
-#define APP_VERSION L"1.3.5"
+#define APP_VERSION L"1.3.6"
 #define APP_AUTHOR L"Roberto Ferri"
 
 // Costanti per temi Windows 11 (alcune potrebbero non essere definite in vecchie versioni SDK)
@@ -945,7 +945,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 if (g_hBrowserWnd)
                 {
-                    FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
+                    FatturaViewer::ShowWelcomePage(g_hBrowserWnd);
                 }
             }
         }
@@ -1802,7 +1802,7 @@ void OnOpenPaths(HWND hWnd, const std::vector<std::wstring>& paths)
     UpdateNavButtons();
     if (g_hBrowserWnd)
     {
-        FatturaViewer::NavigateToString(g_hBrowserWnd, FatturaViewer::GetWelcomePageHTML());
+        FatturaViewer::ShowWelcomePage(g_hBrowserWnd);
     }
     if (g_hListBox)
         SendMessage(g_hListBox, LB_RESETCONTENT, 0, 0);

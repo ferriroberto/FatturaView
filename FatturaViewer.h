@@ -19,6 +19,7 @@ public:
     static void SaveHTMLToFile(const std::wstring& htmlContent, const std::wstring& filePath);
     static void CreateWelcomePage(const std::wstring& filePath);
     static std::wstring GetWelcomePageHTML();
+    static void ShowWelcomePage(HWND hBrowser);
     static void CleanupBrowser(HWND hBrowser);
     static void PrintDocument(HWND hBrowser);
     static void PrintDocumentSilent(HWND hBrowser);

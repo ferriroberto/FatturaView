@@ -71,14 +71,29 @@ public:
                 std::wstring url(bstrURL);
                 bool isHttp       = (url.rfind(L"http", 0) == 0);
                 bool isAttachment = (url.rfind(L"fvatt://", 0) == 0);
+                bool isAppCmd     = (url.rfind(L"app://", 0) == 0);
 
-                if (isHttp || isAttachment)
+                if (isHttp || isAttachment || isAppCmd)
                 {
                     VARIANT* pCancel = &pParams->rgvarg[0];
                     if (pCancel->vt == (VT_BOOL | VT_BYREF) && pCancel->pboolVal)
                         *pCancel->pboolVal = VARIANT_TRUE;
 
-                    if (isAttachment)
+                    if (isAppCmd)
+                    {
+                        std::wstring cmd = url.substr(6); // salta "app://"
+                        // IE potrebbe aggiungere un trailing slash
+                        while (!cmd.empty() && cmd.back() == L'/')
+                            cmd.pop_back();
+                        HWND hMain = GetAncestor(m_hParent, GA_ROOT);
+                        if (cmd == L"open-file")
+                            PostMessage(hMain, WM_COMMAND, IDM_OPEN_ZIP, 0);
+                        else if (cmd == L"select-stylesheet")
+                            PostMessage(hMain, WM_COMMAND, IDM_SETTINGS_SELECT_STYLESHEET, 0);
+                        else if (cmd == L"print-selected")
+                            PostMessage(hMain, WM_COMMAND, IDM_PRINT_SELECTED, 0);
+                    }
+                    else if (isAttachment)
                     {
                         // fvatt:///C:/path/to/file  ->  C:\path\to\file
                         std::wstring path = url.substr(8); // salta "fvatt://"
@@ -571,7 +586,7 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     html += L"background:#ffffff;border-radius:24px;max-width:520px;min-width:420px;";
     html += L"box-shadow:0 25px 50px -12px rgba(0,0,0,0.4);";
     html += L"animation:slideUp 0.6s cubic-bezier(0.34,1.56,0.64,1)}";
-    html += L".logo{max-width:280px;max-height:120px;margin:0 auto 20px;display:block;animation:float 4s ease-in-out infinite}";
+    html += L".logo{max-width:280px;max-height:120px;margin:0 auto 20px;display:block}";
     html += L".hd{margin-bottom:24px}";
     html += L"h1{font-size:2.2em;margin-bottom:8px;font-weight:bold;color:#1d4ed8;letter-spacing:-0.03em}";
     html += L".s{font-size:0.95em;color:#64748b;font-weight:500;margin-bottom:4px}";
@@ -584,6 +599,7 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     html += L".st{background:#f8fafc;padding:14px 16px;margin:12px 0;border-radius:16px;";
     html += L"text-align:left;display:block;transition:all 0.3s ease;border:2px solid #e2e8f0;position:relative}";
     html += L".st:hover{transform:translateX(6px);box-shadow:0 8px 16px rgba(0,0,0,0.1);border-color:#93c5fd}";
+    html += L"a.st{text-decoration:none;color:inherit;cursor:pointer}";
     html += L".n{width:32px;height:32px;background:#3b82f6;color:#ffffff;border-radius:8px;";
     html += L"display:inline-block;text-align:center;line-height:32px;font-weight:bold;";
     html += L"margin-right:12px;vertical-align:middle}";
@@ -609,20 +625,33 @@ std::wstring FatturaViewer::GetWelcomePageHTML()
     }
 
     html += L"<div class=\"hd\">";
-    html += L"<h1>FatturaView</h1>";
     html += L"<p class=\"s\">Visualizzatore Professionale Fatture Elettroniche PA</p>";
     html += L"<div class=\"bg\">";
     html += L"<span class=\"b b1\">XML/ZIP</span>";
     html += L"<span class=\"b b2\">XSLT</span>";
     html += L"<span class=\"b b3\">PDF</span>";
     html += L"</div></div>";
-    html += L"<div class=\"st\"><div class=\"n\">1</div><div class=\"st-inner\"><b>Apri Archivio</b><span class=\"txt\">File - Apri archivio ZIP</span></div></div>";
-    html += L"<div class=\"st\"><div class=\"n\">2</div><div class=\"st-inner\"><b>Seleziona Fattura</b><span class=\"txt\">Doppio click nella lista</span></div></div>";
-    html += L"<div class=\"st\"><div class=\"n\">3</div><div class=\"st-inner\"><b>Applica Stile</b><span class=\"txt\">Ministero o Assosoftware</span></div></div>";
-    html += L"<div class=\"st\"><div class=\"n\">4</div><div class=\"st-inner\"><b>Stampa PDF</b><span class=\"txt\">File - Stampa fatture</span></div></div>";
+    html += L"<a class=\"st\" href=\"app://open-file\"><div class=\"n\">1</div><div class=\"st-inner\"><b>Apri Archivio</b><span class=\"txt\">File - Apri archivio ZIP</span></div></a>";
+    html += L"<a class=\"st\" href=\"app://open-file\"><div class=\"n\">2</div><div class=\"st-inner\"><b>Seleziona Fattura</b><span class=\"txt\">Doppio click nella lista</span></div></a>";
+    html += L"<a class=\"st\" href=\"app://select-stylesheet\"><div class=\"n\">3</div><div class=\"st-inner\"><b>Applica Stile</b><span class=\"txt\">Ministero o Assosoftware</span></div></a>";
+    html += L"<a class=\"st\" href=\"app://print-selected\"><div class=\"n\">4</div><div class=\"st-inner\"><b>Stampa PDF</b><span class=\"txt\">File - Stampa fatture</span></div></a>";
     html += L"<p class=\"ft\"><a href=\"https://www.fatturaview.it\">www.fatturaview.it</a></p>";
     html += L"</div></td></tr></table></body></html>";
     return html;
+}
+
+void FatturaViewer::ShowWelcomePage(HWND hBrowser)
+{
+    if (!hBrowser) return;
+
+    std::wstring html = GetWelcomePageHTML();
+
+    // Salva su file temporaneo e naviga (contesto file:// necessario per i link app://)
+    WCHAR tempDir[MAX_PATH];
+    GetTempPathW(MAX_PATH, tempDir);
+    std::wstring tempFile = std::wstring(tempDir) + L"FatturaView_welcome_active.html";
+    SaveHTMLToFile(html, tempFile);
+    NavigateToHTML(hBrowser, tempFile);
 }
 
 void FatturaViewer::NavigateToString(HWND hBrowser, const std::wstring& htmlContent)

@@ -7,7 +7,7 @@
 
 #define AppName        "FatturaView"
 #define AppFullName    "FatturaView - Visualizzatore Fatture Elettroniche"
-#define AppVersion     "1.3.5"
+#define AppVersion     "1.3.6"
 #define AppPublisher   "Roberto Ferri"
 #define AppURL         "https://github.com/ferriroberto/FatturaView"
 #define AppExeName     "FatturaView.exe"
